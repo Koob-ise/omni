@@ -1,0 +1,8 @@
+[server]
+id = 123456789012345678
+
+[bot]
+DISCORD_BOT_TOKEN=""
+status = "online"
+activity = "тапает хомяка"
+prefix = "!"

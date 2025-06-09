@@ -1,0 +1,24 @@
+{
+  "channels": {
+    "❗│read-first": {
+      "id": 1381427463263096904,
+      "webhook": {
+        "name": "🌍 Welcome Bot",
+        "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0&=&format=webp&quality=lossless",
+        "logo": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0&=&format=webp&quality=lossless",
+        "reason": "Выбор языка"
+      }
+    },
+    "📌│информация": {
+      "id": 987654321098765432,
+      "webhook": {
+        "name": "Announcements Bot",
+        "avatar": null
+      }
+    },
+    "logs": {
+      "id": 567890123456789012,
+      "webhook": null
+    }
+  }
+}
