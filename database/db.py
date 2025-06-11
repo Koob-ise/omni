@@ -2,57 +2,50 @@ import json
 import os
 from datetime import datetime, timedelta
 import pytz
-import configparser
+from pathlib import Path
 
-config = configparser.ConfigParser()
-config.read('config.cfg')
-DB_FILE = config.get('DEFAULT', 'DB_FILE')
+DB_PATH = '../database/database.json'
 
 
 def load_data():
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r", encoding="utf-8") as file:
-            return json.load(file)
-    return {
-        "discord": {},
-        "mindustry": {},
-        "id_mapping": {}
-    }
+    try:
+        if os.path.exists(DB_PATH):
+            with open(DB_PATH, "r", encoding="utf-8") as file:
+                return json.load(file)
+    except json.JSONDecodeError:
+        if os.path.exists(DB_PATH):
+            os.remove(DB_PATH)
+
+    return {"discord": {}, "mindustry": {}, "id_mapping": {}}
 
 
 def save_data(data):
-    with open(DB_FILE, "w", encoding="utf-8") as file:
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    with open(DB_PATH, "w", encoding="utf-8") as file:
         json.dump(data, file, indent=4, ensure_ascii=False)
 
 
-def create_user_entry():
-    return {
-        "created_at": datetime.now(pytz.timezone('GMT')).strftime('%Y-%m-%d %H:%M:%S'),
-        "action": {
-            "promotions": [],
-            "demotions": [],
-            "bans": [],
-            "mutes": [],
-            "warns": []
-        },
-        "promotions": [],
-        "demotions": [],
-        "return_date_to_position": "",
-        "return_date_to_staff": "",
-        "mutes": [],
-        "bans": [],
-        "warns": [],
-        "unban_time": "",
-        "unmute_time": ""
-    }
+def create_user(platform, user_id):
+    if platform not in ["discord", "mindustry"]:
+        raise ValueError("Неподдерживаемая платформа")
 
-
-def get_or_create_user(platform, user_id):
     data = load_data()
     user_id_str = str(user_id)
 
     if user_id_str not in data[platform]:
-        data[platform][user_id_str] = create_user_entry()
+        data[platform][user_id_str] = {
+            "created_at": datetime.now(pytz.timezone('GMT')).strftime('%Y-%m-%d %H:%M:%S'),
+            "action": {"promotions": [], "demotions": [], "bans": [], "mutes": [], "warns": []},
+            "promotions": [],
+            "demotions": [],
+            "return_date_to_position": "",
+            "return_date_to_staff": "",
+            "mutes": [],
+            "bans": [],
+            "warns": [],
+            "unban_time": "",
+            "unmute_time": ""
+        }
         save_data(data)
 
     return data[platform][user_id_str]
@@ -91,26 +84,27 @@ def get_full_user_data(platform, user_id):
     if platform not in data or user_id_str not in data[platform]:
         return None
 
+    user_data = data[platform][user_id_str]
     result = {
         'platform': platform,
         'id': user_id_str,
-        'created_at': data[platform][user_id_str]['created_at'],
+        'created_at': user_data['created_at'],
         'profile_data': {
-            'promotions': data[platform][user_id_str]['promotions'],
-            'demotions': data[platform][user_id_str]['demotions'],
-            'mutes': data[platform][user_id_str]['mutes'],
-            'bans': data[platform][user_id_str]['bans'],
-            'warns': data[platform][user_id_str]['warns'],
+            'promotions': user_data['promotions'],
+            'demotions': user_data['demotions'],
+            'mutes': user_data['mutes'],
+            'bans': user_data['bans'],
+            'warns': user_data['warns'],
             'return_dates': {
-                'to_position': data[platform][user_id_str]['return_date_to_position'],
-                'to_staff': data[platform][user_id_str]['return_date_to_staff']
+                'to_position': user_data['return_date_to_position'],
+                'to_staff': user_data['return_date_to_staff']
             },
             'active_restrictions': {
-                'unban_time': data[platform][user_id_str]['unban_time'],
-                'unmute_time': data[platform][user_id_str]['unmute_time']
+                'unban_time': user_data['unban_time'],
+                'unmute_time': user_data['unmute_time']
             }
         },
-        'actions_taken': data[platform][user_id_str]['action'],
+        'actions_taken': user_data['action'],
         'linked_account': None
     }
 
@@ -133,8 +127,8 @@ def get_full_user_data(platform, user_id):
 
 
 def promotion(platform, role_changed_by, main_user, role):
-    user_data = get_or_create_user(platform, main_user)
-    admin_data = get_or_create_user(platform, role_changed_by)
+    user_data = create_user(platform, main_user)
+    admin_data = create_user(platform, role_changed_by)
     date = datetime.now(pytz.timezone('GMT')).strftime('%Y-%m-%d %H:%M:%S')
 
     user_data["promotions"].append({
@@ -154,8 +148,8 @@ def promotion(platform, role_changed_by, main_user, role):
 
 
 def demotion(platform, role_changed_by, main_user, role):
-    user_data = get_or_create_user(platform, main_user)
-    admin_data = get_or_create_user(platform, role_changed_by)
+    user_data = create_user(platform, main_user)
+    admin_data = create_user(platform, role_changed_by)
     date = datetime.now(pytz.timezone('GMT')).strftime('%Y-%m-%d %H:%M:%S')
 
     user_data["demotions"].append({
@@ -178,7 +172,7 @@ def set_return_date(platform, main_user, DAYS_TO_ADD):
     today = datetime.now(pytz.timezone('GMT'))
     return_date = today + timedelta(days=DAYS_TO_ADD)
     return_date_str = return_date.strftime('%Y-%m-%d %H:%M:%S')
-    user_data = get_or_create_user(platform, main_user)
+    user_data = create_user(platform, main_user)
     user_data["return_date_to_position"] = return_date_str
     update_user_data(platform, main_user, user_data)
 
@@ -187,14 +181,14 @@ def set_staff_return_date(platform, main_user, DAYS_TO_ADD):
     today = datetime.now(pytz.timezone('GMT'))
     staff_return_date = today + timedelta(days=DAYS_TO_ADD)
     staff_return_date_str = staff_return_date.strftime('%Y-%m-%d %H:%M:%S')
-    user_data = get_or_create_user(platform, main_user)
+    user_data = create_user(platform, main_user)
     user_data["return_date_to_staff"] = staff_return_date_str
     update_user_data(platform, main_user, user_data)
 
 
 def add_mute(platform, main_user, muted_by, reason, mute_days):
-    user_data = get_or_create_user(platform, main_user)
-    admin_data = get_or_create_user(platform, muted_by)
+    user_data = create_user(platform, main_user)
+    admin_data = create_user(platform, muted_by)
     date = datetime.now(pytz.timezone('GMT')).strftime('%Y-%m-%d %H:%M:%S')
     new_unmute_time = (datetime.now(pytz.timezone('GMT')) + timedelta(days=mute_days)).strftime('%Y-%m-%d %H:%M:%S')
 
@@ -224,8 +218,8 @@ def add_mute(platform, main_user, muted_by, reason, mute_days):
 
 
 def add_ban(platform, main_user, banned_by, reason, ban_days):
-    user_data = get_or_create_user(platform, main_user)
-    admin_data = get_or_create_user(platform, banned_by)
+    user_data = create_user(platform, main_user)
+    admin_data = create_user(platform, banned_by)
     date = datetime.now(pytz.timezone('GMT')).strftime('%Y-%m-%d %H:%M:%S')
     new_unban_time = (datetime.now(pytz.timezone('GMT')) + timedelta(days=ban_days)).strftime('%Y-%m-%d %H:%M:%S')
 
@@ -255,8 +249,8 @@ def add_ban(platform, main_user, banned_by, reason, ban_days):
 
 
 def add_warn(platform, main_user, warned_by, reason, warn_days):
-    user_data = get_or_create_user(platform, main_user)
-    admin_data = get_or_create_user(platform, warned_by)
+    user_data = create_user(platform, main_user)
+    admin_data = create_user(platform, warned_by)
     date = datetime.now(pytz.timezone('GMT')).strftime('%Y-%m-%d %H:%M:%S')
     unwarn_time = (datetime.now(pytz.timezone('GMT')) + timedelta(days=warn_days)).strftime('%Y-%m-%d %H:%M:%S')
 
@@ -276,12 +270,12 @@ def add_warn(platform, main_user, warned_by, reason, warn_days):
 
     update_user_data(platform, main_user, user_data)
     update_user_data(platform, warned_by, admin_data)
-
+'''
 # 1
-discord_user1 = get_or_create_user('discord', 1001)
-discord_user2 = get_or_create_user('discord', 1002)
-mindustry_user1 = get_or_create_user('mindustry', 2001)
-mindustry_user2 = get_or_create_user('mindustry', 2002)
+discord_user1 = create_user('discord', 1001)
+discord_user2 = create_user('discord', 1002)
+mindustry_user1 = create_user('mindustry', 2001)
+mindustry_user2 = create_user('mindustry', 2002)
 
 # 2
 map_ids(1001, 2001)  # Связываем Discord ID 1001 с Mindustry ID 2001
@@ -319,3 +313,4 @@ print(f"Связанный ID для Mindustry 2002: {related_platform} {related
 full_data = load_data()
 print("\nПолное содержимое базы данных:")
 print(json.dumps(full_data, indent=2, ensure_ascii=False))
+'''

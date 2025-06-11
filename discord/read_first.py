@@ -1,9 +1,12 @@
+#read_first.py
+from database.db import create_user
 import disnake
 from disnake import Embed, Webhook, ui
 from disnake.ext import commands
 import asyncio
 import json
 import os
+discord_user1 = create_user('discord', 1001)
 
 
 class LanguageSelect(ui.Select):

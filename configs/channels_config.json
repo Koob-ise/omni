@@ -9,16 +9,23 @@
         "reason": "Выбор языка"
       }
     },
-    "📌│информация": {
-      "id": 987654321098765432,
+    "⚖│обратная-связь": {
+      "id": 1381443752547188788,
       "webhook": {
-        "name": "Announcements Bot",
-        "avatar": null
+        "name": "❓ Support Bot",
+        "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0&=&format=webp&quality=lossless",
+        "logo": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0&=&format=webp&quality=lossless",
+        "reason": "Помогает"
       }
     },
-    "logs": {
-      "id": 567890123456789012,
-      "webhook": null
+    "⚖│feedback": {
+      "id": 1381647530026336337,
+      "webhook": {
+        "name": "❓ Support Bot",
+        "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0&=&format=webp&quality=lossless",
+        "logo": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0&=&format=webp&quality=lossless",
+        "reason": "Помогает"
+      }
     }
   }
 }

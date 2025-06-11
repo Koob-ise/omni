@@ -1,5 +1,5 @@
 import discord
-import database
+from database.db import load_data
 from datetime import datetime
 import time
 from pytz import timezone

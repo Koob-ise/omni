@@ -1,3 +1,4 @@
+#main.py
 import disnake
 from disnake.ext import commands
 import toml
@@ -15,6 +16,7 @@ with open(channels_path, "r", encoding="utf-8") as f:
 
 bot = commands.Bot(
     command_prefix=config["bot"]["prefix"],
+    activity=disnake.Game(config["bot"]["activity"]),
     intents=disnake.Intents.all()
 )
 

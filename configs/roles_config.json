@@ -3,5 +3,11 @@
     "russian": 1381428080584953867,
     "english": 1381427893271527424,
     "bilingual": 1381646423056977991
+  },
+  "staff_roles": {
+    "mindustry moderator": {
+      "id": 1381428396013125733,
+      "choose": null
+    }
   }
 }
