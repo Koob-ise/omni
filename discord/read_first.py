@@ -6,7 +6,6 @@ from disnake.ext import commands
 import asyncio
 import json
 import os
-discord_user1 = create_user('discord', 1001)
 
 
 class LanguageSelect(ui.Select):
@@ -50,6 +49,7 @@ class LanguageSelect(ui.Select):
         both_role = guild.get_role(self.roles_config["language_roles"]["bilingual"])
 
         try:
+            discord_user = create_user('discord', str(member.id))
             # Удаляем все языковые роли
             for role in [ru_role, en_role, both_role]:
                 if role and role in member.roles:
