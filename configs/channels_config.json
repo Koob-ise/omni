@@ -26,6 +26,96 @@
         "logo": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0&=&format=webp&quality=lossless",
         "reason": "Помогает"
       }
+    },
+    "📌│информация": {
+      "id": 1381439997051277374,
+      "webhook": {
+        "name": "📌 Инфо Бот",
+        "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "logo": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "reason": "Информационное сообщение"
+      }
+    },
+    "📜│правила": {
+      "id": 1381440017234268170,
+      "webhook": {
+        "name": "📜 Бот Правил",
+        "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "logo": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "reason": "Сообщение с правилами"
+      }
+    },
+    "🔄│обновления": {
+      "id": 1381440327868481556,
+      "webhook": {
+        "name": "🔄 Бот Обновлений",
+        "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "logo": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "reason": "Сообщение об обновлениях"
+      }
+    },
+    "🎮│статус-сервера": {
+      "id": 1381440347472793620,
+      "webhook": {
+        "name": "🎮 Игровой Бот",
+        "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "logo": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "reason": "Игровые новости"
+      }
+    },
+    "📢│новости": {
+      "id": 1381440302447071284,
+      "webhook": {
+        "name": "📢 Бот Новостей",
+        "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "logo": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "reason": "Сообщение с новостями"
+      }
+    },
+    "📌│server-info": {
+      "id": 1381440052411760793,
+      "webhook": {
+        "name": "📌 Info Bot",
+        "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "logo": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "reason": "Information message"
+      }
+    },
+    "📜│rules": {
+      "id": 1381440069553885276,
+      "webhook": {
+        "name": "📜 Rules Bot",
+        "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "logo": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "reason": "Rules message"
+      }
+    },
+    "🔄│updates": {
+      "id": 1381440382918725684,
+      "webhook": {
+        "name": "🔄 Updates Bot",
+        "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "logo": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "reason": "Updates message"
+      }
+    },
+    "🎮│server-status": {
+      "id": 1381440398555222099,
+      "webhook": {
+        "name": "🎮 Game News Bot",
+        "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "logo": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "reason": "Game news message"
+      }
+    },
+    "📢│announcements": {
+      "id": 1381440366896484392,
+      "webhook": {
+        "name": "📢 Announcements Bot",
+        "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "logo": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless",
+        "reason": "Announcements message"
+      }
     }
   }
 }

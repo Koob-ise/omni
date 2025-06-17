@@ -2,7 +2,6 @@ import json
 import os
 from datetime import datetime, timedelta
 import pytz
-from pathlib import Path
 
 DB_PATH = '../database/database.json'
 
@@ -270,6 +269,8 @@ def add_warn(platform, main_user, warned_by, reason, warn_days):
 
     update_user_data(platform, main_user, user_data)
     update_user_data(platform, warned_by, admin_data)
+
+mindustry_user1 = create_user('mindustry', 2001)
 '''
 # 1
 discord_user1 = create_user('discord', 1001)
