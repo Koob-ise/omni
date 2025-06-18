@@ -1,9 +1,20 @@
 import disnake
 from disnake import Option, OptionType, TextInputStyle
 from disnake.ui import TextInput, Modal
+import aiohttp
 
-def setup_slash_commands(bot, channels_config):
+def setup_slash_commands_push(bot, channels_config, roles_config):
     command_data = {}
+
+    def has_push_permission(member, channel_name):
+        for role in member.roles:
+            role_id = role.id
+            for role_data in roles_config["staff_roles"].values():
+                if role_data["id"] == role_id and role_data.get("choose"):
+                    allowed_commands = [cmd.strip() for cmd in role_data["choose"].split(",")]
+                    if "push" in allowed_commands or f"push-{channel_name}" in allowed_commands:
+                        return True
+        return False
 
     @bot.slash_command(
         name="push",
@@ -45,6 +56,13 @@ def setup_slash_commands(bot, channels_config):
             image_url: str = None,
             image_file: disnake.Attachment = None
     ):
+        if not has_push_permission(inter.author, channel):
+            await inter.response.send_message(
+                "You don't have permission to push messages to this channel.",
+                ephemeral=True
+            )
+            return
+
         components = [
             TextInput(
                 label="Title",
@@ -103,13 +121,16 @@ def setup_slash_commands(bot, channels_config):
 
         title = inter.text_values["title"]
         description = inter.text_values["description"]
-        footer = inter.text_values.get("footer", "OmniCorp © 2025")
 
         channel_id = channels_config["channels"][channel]["id"]
         target_channel = inter.guild.get_channel(channel_id)
 
         if not target_channel:
             return await inter.response.send_message("Channel not found!", ephemeral=True)
+
+        webhook_config = channels_config["channels"][channel].get("webhook", {})
+        webhook_name = webhook_config.get("name", "Omnicorp Bot")
+        webhook_avatar_url = webhook_config.get("avatar")
 
         color_map = {
             "Blue": disnake.Color.blue(),
@@ -137,13 +158,26 @@ def setup_slash_commands(bot, channels_config):
             embed.set_image(url=image_url)
 
         try:
-            webhook = await target_channel.create_webhook(name="Omnicorp Bot")
+            avatar_bytes = None
+            if webhook_avatar_url:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(webhook_avatar_url) as resp:
+                        if resp.status == 200:
+                            avatar_bytes = await resp.read()
+
+            webhook = await target_channel.create_webhook(
+                name=webhook_name,
+                avatar=avatar_bytes
+            )
+
             await webhook.send(
                 embed=embed,
-                username="Omnicorp Bot",
-                avatar_url=None
+                username=webhook_name,
+                avatar_url=webhook_avatar_url
             )
+
             await webhook.delete()
+
             await inter.response.send_message("Message sent successfully!", ephemeral=True)
         except Exception as e:
             await inter.response.send_message(f"Error sending message: {str(e)}", ephemeral=True)

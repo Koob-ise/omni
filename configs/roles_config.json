@@ -5,8 +5,68 @@
     "bilingual": 1381646423056977991
   },
   "staff_roles": {
-    "mindustry moderator": {
+    "Discord Developer": {
+      "id": 1381434949919445163,
+      "choose": "push-🔄│updates, test"
+    },
+    "Discord Trial Developer": {
+      "id": 1384646199948087508,
+      "choose": "test"
+    },
+    "Mindustry Admin": {
+      "id": 1381433541052596234,
+      "choose": null
+    },
+    "Mindustry Moderator": {
       "id": 1381428396013125733,
+      "choose": null
+    },
+    "Mindustry Trial Moderator": {
+      "id": 1381428342443479160,
+      "choose": null
+    },
+    "Discord Mentor": {
+      "id": 1381434687616061460,
+      "choose": null
+    },
+    "Discord Helper": {
+      "id": 1381435469295915028,
+      "choose": null
+    },
+    "Mindustry Developer": {
+      "id": 1381435156946227320,
+      "choose": "push-updates, test"
+    },
+    "Mindustry Trial Developer": {
+      "id": 1384646034323538060,
+      "choose": null
+    },
+    "Discord Admin": {
+      "id": 1381433368629219399,
+      "choose": "clear"
+    },
+    "Discord Moderator": {
+      "id": 1381428548639784991,
+      "choose": "clear"
+    },
+    "Discord Trial Moderator": {
+      "id": 1381428496873820240,
+      "choose": null
+    },
+    "Mindustry Mentor": {
+      "id": 1381434816108560514,
+      "choose": null
+    },
+    "Mindustry Helper": {
+      "id": 1381435543526838374,
+      "choose": null
+    },
+    "Content Moderator": {
+      "id": 1381428643657420910,
+      "choose": "push-📢│announcements"
+    },
+    "Content Trial Moderator": {
+      "id": 1381428613328404530,
       "choose": null
     }
   }

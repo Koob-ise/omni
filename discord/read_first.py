@@ -126,8 +126,7 @@ async def setup_read_first(bot: commands.Bot, guild_id: int, channel_id: int, we
 
     try:
         webhook = await channel.create_webhook(
-            name=webhook_config.get("name", "Omnicorp Bot"),
-            reason=webhook_config.get("reason", "Language selection")
+            name=webhook_config.get("name", "Omnicorp Bot")
         )
 
         embed = Embed(
@@ -152,10 +151,6 @@ async def setup_read_first(bot: commands.Bot, guild_id: int, channel_id: int, we
 
         if "banner" in webhook_config and webhook_config["banner"]:
             embed.set_image(url=webhook_config["banner"])
-        if "logo" in webhook_config and webhook_config["logo"]:
-            embed.set_thumbnail(url=webhook_config["logo"])
-        else:
-            embed.set_thumbnail(url="https://i.imgur.com/default_logo.png")
 
         embed.set_footer(text="OmniCorp © 2025")
 
