@@ -32,7 +32,7 @@ def create_user(platform, user_id):
     user_id_str = str(user_id)
 
     if user_id_str not in data[platform]:
-        data[platform][user_id_str] = {
+        user_data = {
             "created_at": datetime.now(pytz.timezone('GMT')).strftime('%Y-%m-%d %H:%M:%S'),
             "action": {"promotions": [], "demotions": [], "bans": [], "mutes": [], "warns": []},
             "promotions": [],
@@ -45,20 +45,57 @@ def create_user(platform, user_id):
             "unban_time": "",
             "unmute_time": ""
         }
+
+        if platform == "discord":
+            user_data["tickets"] = []
+
+        data[platform][user_id_str] = user_data
         save_data(data)
 
     return data[platform][user_id_str]
 
 
-def update_user_data(platform, user_id, user_data):
+def update_user_data(platform, user_id, update_data):
     data = load_data()
-    data[platform][str(user_id)] = user_data
+    user_id_str = str(user_id)
+
+    if platform not in data:
+        data[platform] = {}
+
+    if user_id_str not in data[platform]:
+        create_user(platform, user_id)
+        data = load_data()
+
+    current_data = data[platform][user_id_str]
+
+    protected_fields = ['created_at', 'action']
+    for field in protected_fields:
+        if field in update_data:
+            del update_data[field]
+
+    current_data.update(update_data)
+    data[platform][user_id_str] = current_data
     save_data(data)
 
 
 def map_ids(discord_id, mindustry_id):
     data = load_data()
     data["id_mapping"][str(discord_id)] = str(mindustry_id)
+    save_data(data)
+
+
+def create_ticket(discord_user_id, ticket_id):
+    data = load_data()
+    discord_id_str = str(discord_user_id)
+
+    if discord_id_str not in data["discord"]:
+        create_user("discord", discord_user_id)
+        data = load_data()
+
+    if "tickets" not in data["discord"][discord_id_str]:
+        data["discord"][discord_id_str]["tickets"] = []
+
+    data["discord"][discord_id_str]["tickets"].append(ticket_id)
     save_data(data)
 
 
@@ -171,18 +208,14 @@ def set_return_date(platform, main_user, DAYS_TO_ADD):
     today = datetime.now(pytz.timezone('GMT'))
     return_date = today + timedelta(days=DAYS_TO_ADD)
     return_date_str = return_date.strftime('%Y-%m-%d %H:%M:%S')
-    user_data = create_user(platform, main_user)
-    user_data["return_date_to_position"] = return_date_str
-    update_user_data(platform, main_user, user_data)
+    update_user_data(platform, main_user, {"return_date_to_position": return_date_str})
 
 
 def set_staff_return_date(platform, main_user, DAYS_TO_ADD):
     today = datetime.now(pytz.timezone('GMT'))
     staff_return_date = today + timedelta(days=DAYS_TO_ADD)
     staff_return_date_str = staff_return_date.strftime('%Y-%m-%d %H:%M:%S')
-    user_data = create_user(platform, main_user)
-    user_data["return_date_to_staff"] = staff_return_date_str
-    update_user_data(platform, main_user, user_data)
+    update_user_data(platform, main_user, {"return_date_to_staff": staff_return_date_str})
 
 
 def add_mute(platform, main_user, muted_by, reason, mute_days):
@@ -270,48 +303,32 @@ def add_warn(platform, main_user, warned_by, reason, warn_days):
     update_user_data(platform, main_user, user_data)
     update_user_data(platform, warned_by, admin_data)
 
-mindustry_user1 = create_user('mindustry', 2001)
-'''
-# 1
-discord_user1 = create_user('discord', 1001)
-discord_user2 = create_user('discord', 1002)
-mindustry_user1 = create_user('mindustry', 2001)
-mindustry_user2 = create_user('mindustry', 2002)
 
-# 2
-map_ids(1001, 2001)  # Связываем Discord ID 1001 с Mindustry ID 2001
-map_ids(1002, 2002)  # Связываем Discord ID 1002 с Mindustry ID 2002
+if __name__ == "__main__":
+    data = load_data()
+    save_data(data)
 
-# 3
-promotion('discord', 1001, 1002, "Модератор")
+    create_user("discord", "123456789")
+    create_user("mindustry", "player123")
 
-demotion('discord', 1001, 1002, "Пользователь")
+    update_user_data("discord", "123456789", {"notes": "Important user"})
 
-add_mute('discord', 1002, 1001, "Оскорбления", 3)
+    map_ids("987654321", "mindustry_player456")
 
-add_ban('mindustry', 2002, 2001, "Читы", 30)
+    create_ticket("1122334455", "TICKET-001")
 
-add_warn('mindustry', 2001, 2002, "Спам", 7)
+    platform, related_id = get_related_id("987654321")
+    print(f"Related ID: {platform} - {related_id}")
 
-set_return_date('discord', 1002, 14)
-set_staff_return_date('discord', 1002, 30)
+    user_profile = get_full_user_data("discord", "123456789")
+    print(user_profile)
 
-# 4
-discord_data = get_full_user_data('discord', 1001)
-print(f"Данные Discord пользователя 1001:\n{discord_data}")
+    promotion("discord", "admin001", "user002", "Moderator")
+    demotion("discord", "admin001", "user002", "Moderator")
 
-mindustry_data = get_full_user_data('mindustry', 2002)
-print(f"\nДанные Mindustry пользователя 2002:\n{mindustry_data}")
+    set_return_date("discord", "user003", 30)
+    set_staff_return_date("discord", "user004", 60)
 
-# 5
-related_platform, related_id = get_related_id(1001)
-print(f"\nСвязанный ID для Discord 1001: {related_platform} {related_id}")
-
-related_platform, related_id = get_related_id(2002)
-print(f"Связанный ID для Mindustry 2002: {related_platform} {related_id}")
-
-# 6
-full_data = load_data()
-print("\nПолное содержимое базы данных:")
-print(json.dumps(full_data, indent=2, ensure_ascii=False))
-'''
+    add_mute("mindustry", "player789", "admin002", "Spamming", 3)
+    add_ban("discord", "user005", "admin003", "Cheating", 7)
+    add_warn("mindustry", "player101", "admin004", "Toxicity", 14)

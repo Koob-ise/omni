@@ -1,4 +1,13 @@
 {
+  "categories": {
+    "❓│Помощь / Support": {
+      "id": 1381441417125171280,
+      "webhook": {
+        "name": "📌 Tickets Bot",
+        "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless"
+      }
+    }
+  },
   "channels": {
     "❗│read-first": {
       "id": 1381427463263096904,
@@ -11,49 +20,49 @@
     "⚖│обратная-связь": {
       "id": 1381443752547188788,
       "webhook": {
-        "name": "❓ Support Bot",
+        "name": "⚖ Feedback Bot",
         "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0&=&format=webp&quality=lossless"
       }
     },
     "⚖│feedback": {
       "id": 1381647530026336337,
       "webhook": {
-        "name": "❓ Support Bot",
+        "name": "⚖ Feedback Bot",
         "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0&=&format=webp&quality=lossless"
       }
     },
     "📌│информация": {
       "id": 1381439997051277374,
       "webhook": {
-        "name": "📌 Инфо Бот",
+        "name": "📌 Info Bot",
         "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless"
       }
     },
     "📜│правила": {
       "id": 1381440017234268170,
       "webhook": {
-        "name": "📜 Бот Правил",
+        "name": "📜 Rules Bot",
         "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless"
       }
     },
     "🔄│обновления": {
       "id": 1381440327868481556,
       "webhook": {
-        "name": "🔄 Бот Обновлений",
+        "name": "🔄 Updates Bot",
         "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless"
       }
     },
     "🎮│статус-сервера": {
       "id": 1381440347472793620,
       "webhook": {
-        "name": "🎮 Игровой Бот",
+        "name": "🎮 Game Bot",
         "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless"
       }
     },
     "📢│новости": {
       "id": 1381440302447071284,
       "webhook": {
-        "name": "📢 Бот Новостей",
+        "name": "📢 News Bot",
         "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless"
       }
     },
@@ -81,7 +90,7 @@
     "🎮│server-status": {
       "id": 1381440398555222099,
       "webhook": {
-        "name": "🎮 Game News Bot",
+        "name": "🎮 Game Bot",
         "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless"
       }
     },
@@ -89,6 +98,13 @@
       "id": 1381440366896484392,
       "webhook": {
         "name": "📢 Announcements Bot",
+        "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless"
+      }
+    },
+    "📌│closed-tickets": {
+      "id": 1385444683639033877,
+      "webhook": {
+        "name": "📌 Tickets Bot",
         "avatar": "https://media.discordapp.net/attachments/993836966716129351/997584958388453518/unknown.png?ex=6847de24&is=68468ca4&hm=84213c50f52308ee9dd501e146d83cd0599b21ec622e1e6861ffb116c18b0bf0=&format=webp&quality=lossless"
       }
     }

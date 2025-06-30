@@ -1,6 +1,5 @@
 import disnake
 
-
 def test(bot, roles_config):
     @bot.slash_command(name="test")
     async def test(inter: disnake.ApplicationCommandInteraction):

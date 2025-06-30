@@ -1,13 +1,13 @@
-
 import disnake
 from disnake.ext import commands
 import toml
 import os
 import json
 from read_first import setup_read_first
-from push import setup_slash_commands_push
+from utils.push import setup_slash_commands_push
 from test import test
-from deleter import setup_slash_commands_deleter
+from utils.deleter import setup_slash_commands_deleter
+from feedback.setup import setup_feedback_channel
 
 config_path = os.path.join(os.path.dirname(__file__), "../configs/config.toml")
 channels_path = os.path.join(os.path.dirname(__file__), "../configs/channels_config.json")
@@ -33,14 +33,17 @@ test(bot, roles_config)
 
 @bot.event
 async def on_ready():
-    channel_data = channels_config["channels"]["❗│read-first"]
     await setup_read_first(
         bot=bot,
         guild_id=config["server"]["id"],
-        channel_id=channel_data["id"],
-        webhook_config=channel_data.get("webhook", {}),
-        roles_config=roles_config
-    )
+        channels_config=channels_config,
+        roles_config=roles_config)
+
+    await setup_feedback_channel(
+        bot=bot,
+        channels_config=channels_config,
+        roles_config=roles_config,
+        guild_id=config["server"]["id"])
 
 if __name__ == "__main__":
     bot.run(config["bot"]["DISCORD_BOT_TOKEN"])

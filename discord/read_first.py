@@ -4,6 +4,7 @@ from disnake import Embed, Webhook, ui
 from disnake.ext import commands
 import asyncio
 
+
 class LanguageSelect(ui.Select):
     def __init__(self, roles_config):
         self.roles_config = roles_config
@@ -87,19 +88,29 @@ class LanguageSelect(ui.Select):
                 ephemeral=True
             )
 
+
 class LanguageView(ui.View):
     def __init__(self, roles_config):
         super().__init__(timeout=None)
         self.roles_config = roles_config
         self.add_item(LanguageSelect(roles_config))
 
-async def setup_read_first(bot: commands.Bot, guild_id: int, channel_id: int, webhook_config: dict, roles_config: dict):
+
+async def setup_read_first(bot: commands.Bot, guild_id: int, channels_config: dict, roles_config: dict):
     guild = bot.get_guild(guild_id)
     if not guild:
         return
 
     view = LanguageView(roles_config)
     bot.add_view(view)
+
+    # Получаем данные канала из конфига
+    channel_data = channels_config["channels"].get("❗│read-first")
+    if not channel_data:
+        return
+
+    channel_id = channel_data["id"]
+    webhook_config = channel_data.get("webhook", {})
 
     channel = guild.get_channel(channel_id)
     if not channel:
@@ -116,8 +127,10 @@ async def setup_read_first(bot: commands.Bot, guild_id: int, channel_id: int, we
     has_welcome_message = False
     async for message in channel.history(limit=100):
         if (message.author == bot.user or
-            (isinstance(message.author, disnake.User) and message.author.display_name == webhook_config.get("name", "Omnicorp Bot"))):
-            if message.embeds and any("Добро пожаловать" in embed.title or "Welcome" in embed.title for embed in message.embeds):
+                (isinstance(message.author, disnake.User) and message.author.display_name == webhook_config.get("name",
+                                                                                                                "Omnicorp Bot"))):
+            if message.embeds and any(
+                    "Добро пожаловать" in embed.title or "Welcome" in embed.title for embed in message.embeds):
                 has_welcome_message = True
                 break
 

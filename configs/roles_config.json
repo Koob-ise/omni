@@ -7,7 +7,7 @@
   "staff_roles": {
     "Discord Developer": {
       "id": 1381434949919445163,
-      "choose": "push-🔄│updates, test"
+      "choose": "push-🔄│updates, test, Mindustry-reports"
     },
     "Discord Trial Developer": {
       "id": 1384646199948087508,
@@ -15,23 +15,23 @@
     },
     "Mindustry Admin": {
       "id": 1381433541052596234,
-      "choose": null
+      "choose": "Mindustry-appeals"
     },
     "Mindustry Moderator": {
       "id": 1381428396013125733,
-      "choose": null
+      "choose": "Mindustry-request-for-staff"
     },
     "Mindustry Trial Moderator": {
       "id": 1381428342443479160,
-      "choose": null
+      "choose": "Discord-request-for-staff"
     },
     "Discord Mentor": {
       "id": 1381434687616061460,
-      "choose": null
+      "choose": "Discord-appeals"
     },
     "Discord Helper": {
       "id": 1381435469295915028,
-      "choose": null
+      "choose": "Discord-reports"
     },
     "Mindustry Developer": {
       "id": 1381435156946227320,
