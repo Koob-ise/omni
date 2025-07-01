@@ -8,8 +8,8 @@ def test(bot, roles_config):
         for role in inter.author.roles:
             role_id = role.id
             for role_data in roles_config["staff_roles"].values():
-                if role_data["id"] == role_id and role_data.get("choose"):
-                    allowed_commands = [cmd.strip() for cmd in role_data["choose"].split(",")]
+                if role_data["id"] == role_id and role_data.get("permissions"):
+                    allowed_commands = [cmd.strip() for cmd in role_data["permissions"].split(",")]
                     if "test" in allowed_commands:
                         has_permission = True
                         break

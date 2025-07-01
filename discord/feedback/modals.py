@@ -3,8 +3,10 @@ from disnake import ui, Embed
 import io
 import logging
 from .config import config
+from database.db import create_ticket
 
 log = logging.getLogger(__name__)
+
 
 class ConfirmCloseModal(ui.Modal):
     def __init__(self, channel, opener, ticket_data, lang="en"):
@@ -59,7 +61,23 @@ class ConfirmCloseModal(ui.Modal):
             transcript = await self._generate_transcript()
             embed = self._create_embed(closed_by)
 
-            await self._send_log(modal_interaction, embed, transcript)
+            # Отправляем лог и получаем ссылку на сообщение
+            message_link = await self._send_log_and_get_link(modal_interaction, embed, transcript)
+
+            if message_link:
+                try:
+                    # Сохраняем ссылку в БД как ID тикета
+                    create_ticket(str(self.opener.id), message_link)
+                    log.info(f"Ticket saved for {self.opener.id}: {message_link}")
+                except Exception as e:
+                    log.error(f"Error saving ticket to DB: {e}")
+                    await modal_interaction.followup.send(
+                        f"⚠️ {'Ошибка сохранения тикета' if self.lang == 'ru' else 'Ticket save error'}",
+                        ephemeral=True
+                    )
+            else:
+                log.warning("Failed to get message link for ticket")
+
             await modal_interaction.followup.send(self.texts["success"], ephemeral=True)
 
             try:
@@ -116,19 +134,29 @@ class ConfirmCloseModal(ui.Modal):
             )
         return embed
 
-    async def _send_log(self, interaction, embed, transcript_text):
+    async def _send_log_and_get_link(self, interaction, embed, transcript_text):
+        """Отправляет лог и возвращает ссылку на сообщение"""
         try:
             channels_config = config.channels
             closed_channel_id = channels_config["channels"].get("📌│closed-tickets", {}).get("id")
             if not closed_channel_id:
-                return
+                log.warning("Closed tickets channel not configured")
+                return None
 
             closed_channel = interaction.guild.get_channel(closed_channel_id)
-            if closed_channel:
-                transcript_file = disnake.File(
-                    io.BytesIO(transcript_text.encode('utf-8-sig')),
-                    filename=f"transcript_{self.channel.name}.txt"
-                )
-                await closed_channel.send(embed=embed, file=transcript_file)
+            if not closed_channel:
+                log.error(f"Closed tickets channel not found: {closed_channel_id}")
+                return None
+
+            transcript_file = disnake.File(
+                io.BytesIO(transcript_text.encode('utf-8-sig')),
+                filename=f"transcript_{self.channel.name}.txt"
+            )
+
+            # Отправляем сообщение и сразу получаем его объект
+            log_message = await closed_channel.send(embed=embed, file=transcript_file)
+            return log_message.jump_url
+
         except Exception as e:
             log.error(f"Log sending error: {e}")
+            return None

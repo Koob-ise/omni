@@ -8,9 +8,14 @@ log = logging.getLogger(__name__)
 
 async def create_ticket_channel(interaction, title, platform, form_data, lang="en"):
     try:
+        log.info("Starting ticket channel creation")
+        log.debug(f"Parameters: title={title}, platform={platform}, lang={lang}, author={interaction.author}")
+
         # Получаем конфигурацию
         channels_config = config.channels
         roles_config = config.roles
+        log.debug(f"Channels config: {channels_config}")
+        log.debug(f"Roles config: {roles_config}")
 
         # Получаем категорию
         if not channels_config.get("categories"):
@@ -18,32 +23,70 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
             raise ValueError("No categories configured")
 
         category_id = next(iter(channels_config["categories"].values()))["id"]
-        category = interaction.guild.get_channel(category_id)
+        log.debug(f"Category ID: {category_id}")
 
+        category = interaction.guild.get_channel(category_id)
         if not category:
             log.error(f"Category not found: {category_id}")
             raise ValueError("Ticket category not found")
+        log.info(f"Using category: {category.name}")
 
         # Создаем права доступа
         overwrites = {
             interaction.guild.default_role: disnake.PermissionOverwrite(read_messages=False),
             interaction.author: disnake.PermissionOverwrite(read_messages=True, send_messages=True),
         }
+        log.debug(f"Initial overwrites: {overwrites.keys()}")
+
+        # Определяем тип тикета
+        if lang == "ru":
+            ticket_type = next((opt["value"] for opt in TYPE_OPTIONS_RU if opt["label"] == title), title)
+        else:
+            ticket_type = next((opt["value"] for opt in TYPE_OPTIONS if opt["label"] == title), title)
+        log.info(f"Ticket type: {ticket_type}")
+
+        channel_key = f"{platform.capitalize()}-{ticket_type}"
+        log.info(f"Channel key: {channel_key}")
 
         # Добавляем права для персонала
         staff_roles = roles_config.get("staff_roles", {})
-        for rdata in staff_roles.values():
+        log.info(f"Processing {len(staff_roles)} staff roles")
+
+        for role_name, rdata in staff_roles.items():
             role_id = rdata.get("id")
-            if role_id:
-                role = interaction.guild.get_role(role_id)
-                if role:
-                    overwrites[role] = disnake.PermissionOverwrite(
-                        read_messages=True, send_messages=True, manage_messages=True
-                    )
+            permissions_value = rdata.get("permissions")
+
+            if not role_id:
+                log.warning(f"Skipping role {role_name}: missing ID")
+                continue
+
+            if permissions_value is None:
+                log.debug(f"Skipping role {role_name}: no permissions value")
+                continue
+
+            role = interaction.guild.get_role(role_id)
+            if not role:
+                log.warning(f"Role not found: {role_name} (ID: {role_id})")
+                continue
+
+            log.debug(f"Checking role: {role_name} (ID: {role_id}), permissions: '{permissions_value}'")
+
+            # Проверяем совпадение ключа в значении permissions
+            print(channel_key,permissions_value)
+            if channel_key in permissions_value:
+                log.info(f"Adding role {role_name} (ID: {role_id}) to ticket channel")
+                overwrites[role] = disnake.PermissionOverwrite(
+                    read_messages=True, send_messages=True, manage_messages=True
+                )
+            else:
+                log.debug(f"Skipping role {role_name}: '{channel_key}' not in '{permissions_value}'")
+
+        log.info(f"Final overwrites: {list(overwrites.keys())}")
 
         # Формируем имя канала
         display_name = interaction.author.display_name.replace(" ", "-").replace("#", "")
-        channel_name = f"{title.lower()}-{platform}-{display_name}"[:100]  # Ограничение длины имени
+        channel_name = f"{title.lower()}-{platform}-{display_name}"[:100]
+        log.info(f"Channel name: {channel_name}")
 
         # Создаем канал
         channel = await interaction.guild.create_text_channel(
@@ -51,12 +94,7 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
             category=category,
             overwrites=overwrites
         )
-
-        # Определяем тип тикета
-        if lang == "ru":
-            ticket_type = next((opt["value"] for opt in TYPE_OPTIONS_RU if opt["label"] == title), title)
-        else:
-            ticket_type = next((opt["value"] for opt in TYPE_OPTIONS if opt["label"] == title), title)
+        log.info(f"Channel created: {channel.name} (ID: {channel.id})")
 
         # Создаем embed
         embed = Embed(
@@ -70,18 +108,22 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
         )
 
         # Добавляем метаданные в подвал
-        embed.set_footer(text=f"ticket_type:{ticket_type};lang:{lang};opener:{interaction.author.id}")
+        footer_text = f"ticket_type:{ticket_type};lang:{lang};opener:{interaction.author.id}"
+        embed.set_footer(text=footer_text)
+        log.debug(f"Embed footer: {footer_text}")
 
         # Добавляем поля формы
         for key, val in form_data.items():
             # Обрезаем длинные значения
             field_value = val if len(val) <= 1024 else val[:1021] + "…"
             embed.add_field(name=key, value=field_value, inline=False)
+            log.debug(f"Added field: {key} = {field_value[:50]}...")
 
         # Добавляем кнопку закрытия
         from .views import CloseTicketView
         close_view = CloseTicketView(lang=lang)
         await channel.send(embed=embed, view=close_view)
+        log.info("Ticket message sent to channel")
 
         return channel
 

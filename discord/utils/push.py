@@ -10,8 +10,8 @@ def setup_slash_commands_push(bot, channels_config, roles_config):
         for role in member.roles:
             role_id = role.id
             for role_data in roles_config["staff_roles"].values():
-                if role_data["id"] == role_id and role_data.get("choose"):
-                    allowed_commands = [cmd.strip() for cmd in role_data["choose"].split(",")]
+                if role_data["id"] == role_id and role_data.get("permissions"):
+                    allowed_commands = [cmd.strip() for cmd in role_data["permissions"].split(",")]
                     if "push" in allowed_commands or f"push-{channel_name}" in allowed_commands:
                         return True
         return False

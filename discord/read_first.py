@@ -37,6 +37,9 @@ class LanguageSelect(ui.Select):
         )
 
     async def callback(self, interaction: disnake.MessageInteraction):
+        # Немедленно отвечаем defer для предотвращения таймаута
+        await interaction.response.defer(ephemeral=True)
+
         guild = interaction.guild
         member = interaction.author
 
@@ -50,40 +53,42 @@ class LanguageSelect(ui.Select):
                 if role and role in member.roles:
                     await member.remove_roles(role)
 
+            response_message = ""
             if self.values[0] == "russian" and ru_role:
                 await member.add_roles(ru_role)
-                await interaction.response.send_message(
+                response_message = (
                     "✅ Язык установлен: **Русский**\n\n"
                     "• Этот канал будет скрыт\n"
                     "• Для смены языка используйте канал #🔧│персонализация\n"
-                    "• Вам доступны русскоязычные каналы сервера",
-                    ephemeral=True
+                    "• Вам доступны русскоязычные каналы сервера"
                 )
             elif self.values[0] == "english" and en_role:
                 await member.add_roles(en_role)
-                await interaction.response.send_message(
+                response_message = (
                     "✅ Language set to: **English**\n\n"
                     "• This channel will be hidden\n"
                     "• To change language use #🔧│personalization channel\n"
-                    "• You now have access to English channels",
-                    ephemeral=True
+                    "• You now have access to English channels"
                 )
             elif self.values[0] == "bilingual" and both_role:
                 await member.add_roles(both_role)
-                await interaction.response.send_message(
+                response_message = (
                     "✅ Language set to: **Russian + English**\n\n"
                     "• Этот канал будет скрыт\n"
                     "• Для смены языка используйте #🔧│персонализация или #🔧│personalization\n"
-                    "• Вам доступны ВСЕ языковые каналы сервера",
-                    ephemeral=True
+                    "• Вам доступны ВСЕ языковые каналы сервера"
                 )
+
+            # Отправляем результат через followup
+            await interaction.followup.send(response_message, ephemeral=True)
+
         except disnake.Forbidden:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ У бота недостаточно прав для управления ролями!",
                 ephemeral=True
             )
         except Exception as e:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"❌ Произошла ошибка: {str(e)}",
                 ephemeral=True
             )
@@ -116,6 +121,7 @@ async def setup_read_first(bot: commands.Bot, guild_id: int, channels_config: di
     if not channel:
         return
 
+    # Удаляем сообщения от пользователей
     async for message in channel.history(limit=None):
         if not message.author.bot:
             try:
@@ -125,14 +131,21 @@ async def setup_read_first(bot: commands.Bot, guild_id: int, channels_config: di
                 pass
 
     has_welcome_message = False
+    # Проверяем существование welcome-сообщения
     async for message in channel.history(limit=100):
-        if (message.author == bot.user or
-                (isinstance(message.author, disnake.User) and message.author.display_name == webhook_config.get("name",
-                                                                                                                "Omnicorp Bot"))):
-            if message.embeds and any(
-                    "Добро пожаловать" in embed.title or "Welcome" in embed.title for embed in message.embeds):
-                has_welcome_message = True
-                break
+        is_bot_author = message.author == bot.user
+        is_webhook_author = isinstance(message.author,
+                                       disnake.User) and message.author.display_name == webhook_config.get("name",
+                                                                                                           "Omnicorp Bot")
+
+        if is_bot_author or is_webhook_author:
+            if message.embeds:
+                for embed in message.embeds:
+                    if embed.title and ("Добро пожаловать" in embed.title or "Welcome" in embed.title):
+                        has_welcome_message = True
+                        break
+        if has_welcome_message:
+            break
 
     if has_welcome_message:
         return
