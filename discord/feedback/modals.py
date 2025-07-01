@@ -2,18 +2,18 @@ import disnake
 from disnake import ui, Embed
 import io
 import logging
-from .config import global_channels_config
-from .utils import generate_transcript
+from .config import config
 
 log = logging.getLogger(__name__)
 
 class ConfirmCloseModal(ui.Modal):
-    def __init__(self, channel, opener, ticket_data, channels_config, lang="en"):
+    def __init__(self, channel, opener, ticket_data, lang="en"):
         texts = {
             "en": {
                 "title": "Confirm Closure",
                 "label": "Confirmation",
                 "placeholder": "Type 'yes' to confirm",
+                "hint": "❗ Please type 'yes' to confirm closure",
                 "success": "✅ Ticket closed successfully",
                 "error": "❌ Invalid confirmation"
             },
@@ -21,6 +21,7 @@ class ConfirmCloseModal(ui.Modal):
                 "title": "Подтверждение закрытия",
                 "label": "Подтверждение",
                 "placeholder": "Введите 'да' для подтверждения",
+                "hint": "❗ Введите 'да' для подтверждения",
                 "success": "✅ Тикет успешно закрыт",
                 "error": "❌ Неверное подтверждение"
             }
@@ -45,7 +46,6 @@ class ConfirmCloseModal(ui.Modal):
         self.channel = channel
         self.opener = opener
         self.ticket_data = ticket_data
-        self.channels_config = channels_config
 
     async def callback(self, modal_interaction):
         try:
@@ -56,7 +56,7 @@ class ConfirmCloseModal(ui.Modal):
                 return
 
             closed_by = modal_interaction.user
-            transcript = await generate_transcript(self.channel)
+            transcript = await self._generate_transcript()
             embed = self._create_embed(closed_by)
 
             await self._send_log(modal_interaction, embed, transcript)
@@ -80,6 +80,23 @@ class ConfirmCloseModal(ui.Modal):
                 ephemeral=True
             )
 
+    async def _generate_transcript(self):
+        transcript = []
+        async for message in self.channel.history(limit=200, oldest_first=True):
+            content = ""
+            if message.content:
+                content = message.clean_content.replace('\n', ' ')
+            elif message.embeds:
+                content = "[Embed]"
+            elif message.attachments:
+                content = f"[File: {message.attachments[0].filename}]"
+
+            transcript.append(
+                f"[{message.created_at.strftime('%Y-%m-%d %H:%M:%S')}] "
+                f"{message.author.display_name}: {content}"
+            )
+        return "\n".join(transcript)
+
     def _create_embed(self, closed_by):
         embed = Embed(
             title=f"Closed ticket: {self.ticket_data['title']}",
@@ -100,17 +117,12 @@ class ConfirmCloseModal(ui.Modal):
         return embed
 
     async def _send_log(self, interaction, embed, transcript_text):
-        closed_channels = self.channels_config.get("channels", {})
-        closed_channel_info = closed_channels.get("📌│closed-tickets", {})
-
-        if not closed_channel_info:
-            return
-
-        closed_channel_id = closed_channel_info.get("id")
-        if not closed_channel_id:
-            return
-
         try:
+            channels_config = config.channels
+            closed_channel_id = channels_config["channels"].get("📌│closed-tickets", {}).get("id")
+            if not closed_channel_id:
+                return
+
             closed_channel = interaction.guild.get_channel(closed_channel_id)
             if closed_channel:
                 transcript_file = disnake.File(
