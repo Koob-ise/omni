@@ -2,8 +2,7 @@ import disnake
 from disnake import ui
 import time
 import logging
-from .config import config, TYPE_OPTIONS_RU, TYPE_OPTIONS, PLATFORM_OPTIONS_RU, PLATFORM_OPTIONS, MODAL_CONFIGS_RU, \
-    MODAL_CONFIGS
+from .config import TYPE_OPTIONS_RU, TYPE_OPTIONS, PLATFORM_OPTIONS_RU, PLATFORM_OPTIONS, MODAL_CONFIGS_RU, MODAL_CONFIGS
 from .ticket_utils import create_ticket_channel
 
 log = logging.getLogger(__name__)
@@ -28,7 +27,6 @@ class FeedbackView(ui.View):
         self.is_russian = is_russian
         self.user_states = user_states if user_states is not None else {}
 
-        # Селект для типа обращения
         type_options = TYPE_OPTIONS_RU if is_russian else TYPE_OPTIONS
         type_placeholder = "Выберите тип обращения" if is_russian else "Select request type"
         self.type_select = ui.StringSelect(
@@ -41,7 +39,6 @@ class FeedbackView(ui.View):
         self.type_select.callback = self.type_callback
         self.add_item(self.type_select)
 
-        # Селект для платформы
         platform_options = PLATFORM_OPTIONS_RU if is_russian else PLATFORM_OPTIONS
         platform_placeholder = "Выберите платформу" if is_russian else "Select platform"
         self.platform_select = ui.StringSelect(
@@ -54,7 +51,6 @@ class FeedbackView(ui.View):
         self.platform_select.callback = self.platform_callback
         self.add_item(self.platform_select)
 
-        # Кнопка отправки
         submit_label = "Заполнить форму" if is_russian else "Fill Form"
         self.submit_button = ui.Button(
             label=submit_label,
@@ -68,7 +64,7 @@ class FeedbackView(ui.View):
         try:
             await interaction.response.defer(ephemeral=True, with_message=False)
         except disnake.NotFound:
-            return  # Игнорируем ошибку "Unknown interaction"
+            return
 
         state_key = (interaction.message.id, interaction.user.id)
         selected_value = interaction.data["values"][0]
@@ -81,7 +77,7 @@ class FeedbackView(ui.View):
         try:
             await interaction.response.defer(ephemeral=True, with_message=False)
         except disnake.NotFound:
-            return  # Игнорируем ошибку "Unknown interaction"
+            return
 
         state_key = (interaction.message.id, interaction.user.id)
         selected_value = interaction.data["values"][0]
@@ -124,7 +120,6 @@ class FeedbackView(ui.View):
                 max_length=input_config.get("max_length", 4000)
             ))
 
-        # Используем замыкание для передачи state_key
         state_key_final = state_key
         user_states_ref = self.user_states
 

@@ -1,4 +1,3 @@
-import disnake
 from disnake import TextInputStyle
 
 
@@ -29,10 +28,8 @@ class Config:
         return self.roles_config
 
 
-# Создаем экземпляр конфигурации
 config = Config()
 
-# English configuration
 TYPE_OPTIONS = [
     {"label": "Complaint", "value": "complaint", "emoji": "⚠️"},
     {"label": "Appeal", "value": "appeal", "emoji": "📩"},
@@ -70,6 +67,7 @@ MODAL_CONFIGS = {
             {"label": "Desired position", "custom_id": "position", "style": TextInputStyle.short, "max_length": 100},
             {"label": "Why you want this position", "custom_id": "why", "style": TextInputStyle.paragraph,
              "max_length": 500},
+            {"label": "Age", "custom_id": "age", "style": TextInputStyle.short, "max_length": 2},
             {"label": "About yourself", "custom_id": "about", "style": TextInputStyle.paragraph, "max_length": 4000},
             {"label": "Game username", "custom_id": "nick", "style": TextInputStyle.short,
              "condition": lambda platform: platform == "mindustry", "max_length": 200}
@@ -77,7 +75,6 @@ MODAL_CONFIGS = {
     }
 }
 
-# Russian configuration for feedback channel
 TYPE_OPTIONS_RU = [
     {"label": "Жалоба", "value": "complaint", "emoji": "⚠️"},
     {"label": "Апелляция", "value": "appeal", "emoji": "📩"},
@@ -114,6 +111,7 @@ MODAL_CONFIGS_RU = {
             {"label": "Желаемая должность", "custom_id": "position", "style": TextInputStyle.short, "max_length": 100},
             {"label": "Почему вы хотите на должность", "custom_id": "why", "style": TextInputStyle.paragraph,
              "max_length": 500},
+            {"label": "Возраст", "custom_id": "age", "style": TextInputStyle.short, "max_length": 2},
             {"label": "О себе", "custom_id": "about", "style": TextInputStyle.paragraph, "max_length": 4000},
             {"label": "Игровой ник", "custom_id": "nick", "style": TextInputStyle.short,
              "condition": lambda platform: platform == "mindustry", "max_length": 200}

@@ -3,18 +3,20 @@ from disnake import Embed
 import asyncio
 import time
 import logging
-from .config import config, TYPE_OPTIONS_RU, TYPE_OPTIONS, PLATFORM_OPTIONS_RU, PLATFORM_OPTIONS, MODAL_CONFIGS_RU
+from .config import config
 from .views import FeedbackView
 
 log = logging.getLogger(__name__)
 
-# Глобальный словарь для хранения состояний пользователей
 user_states = {}
 last_cleanup = time.time()
-
-
+async def get_webhook(channel, webhook_name):
+    webhooks = await channel.webhooks()
+    for webhook in webhooks:
+        if webhook.name == webhook_name:
+            return webhook
+    return None
 async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
-    # Инициализируем конфигурацию
     config.init(channels_config, roles_config)
 
     @bot.listen("on_button_click")
@@ -88,7 +90,6 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
         log.error(f"Сервер с ID {guild_id} не найден")
         return
 
-    # Setup Russian feedback channel
     ru_key = "⚖│обратная-связь"
     ru_ch_cfg = channels_config["channels"].get(ru_key)
     if ru_ch_cfg:
@@ -96,10 +97,8 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
         if ru_channel:
             try:
                 await ru_channel.purge(limit=100)
-                ru_webhook = await ru_channel.create_webhook(
-                    name=ru_ch_cfg["webhook"]["name"],
-                    avatar=await bot.user.display_avatar.read(),
-                )
+                webhook_name = ru_ch_cfg["webhook"]["name"]
+                ru_webhook = await get_webhook(ru_channel, webhook_name)
                 ru_embed = Embed(
                     title="Обратная связь",
                     description=(
@@ -111,12 +110,11 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
                     color=disnake.Color.orange(),
                 )
                 ru_view = FeedbackView(lang="ru", is_russian=True, user_states=user_states)
-                await ru_webhook.send(
-                    embed=ru_embed,
-                    view=ru_view,
-                    username=ru_ch_cfg["webhook"]["name"]
-                )
-                await ru_webhook.delete()
+
+                if "banner" in channels_config["channels"].get(ru_key).get("webhook", {}) and channels_config["channels"].get(ru_key).get("webhook", {})["banner"]:
+                    ru_embed.set_image(url=channels_config["channels"].get(ru_key).get("webhook", {})["banner"])
+
+                await ru_webhook.send(embed=ru_embed,view=ru_view)
             except Exception as e:
                 log.error(f"Ошибка настройки русского канала: {e}")
         else:
@@ -124,7 +122,6 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
     else:
         log.error("Конфиг для русского канала не найден")
 
-    # Setup English feedback channel
     en_key = "⚖│feedback"
     en_ch_cfg = channels_config["channels"].get(en_key)
     if en_ch_cfg:
@@ -132,10 +129,8 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
         if en_channel:
             try:
                 await en_channel.purge(limit=100)
-                en_webhook = await en_channel.create_webhook(
-                    name=en_ch_cfg["webhook"]["name"],
-                    avatar=await bot.user.display_avatar.read(),
-                )
+                webhook_name = en_ch_cfg["webhook"]["name"]
+                en_webhook = await get_webhook(en_channel, webhook_name)
                 en_embed = Embed(
                     title="Feedback System",
                     description=(
@@ -147,12 +142,11 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
                     color=disnake.Color.orange(),
                 )
                 en_view = FeedbackView(lang="en", is_russian=False, user_states=user_states)
-                await en_webhook.send(
-                    embed=en_embed,
-                    view=en_view,
-                    username=en_ch_cfg["webhook"]["name"]
-                )
-                await en_webhook.delete()
+
+                if "banner" in channels_config["channels"].get(en_key).get("webhook", {}) and channels_config["channels"].get(en_key).get("webhook", {})["banner"]:
+                    en_embed.set_image(url=channels_config["channels"].get(en_key).get("webhook", {})["banner"])
+
+                await en_webhook.send(embed=en_embed,view=en_view)
             except Exception as e:
                 log.error(f"Error setting up English feedback: {e}")
         else:

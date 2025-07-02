@@ -1,8 +1,12 @@
 import disnake
 from disnake import Option, OptionType, TextInputStyle
 from disnake.ui import TextInput, Modal
-import aiohttp
-
+async def get_webhook(channel, webhook_name):
+    webhooks = await channel.webhooks()
+    for webhook in webhooks:
+        if webhook.name == webhook_name:
+            return webhook
+    return None
 def setup_slash_commands_push(bot, channels_config, roles_config):
     command_data = {}
 
@@ -129,8 +133,8 @@ def setup_slash_commands_push(bot, channels_config, roles_config):
             return await inter.response.send_message("Channel not found!", ephemeral=True)
 
         webhook_config = channels_config["channels"][channel].get("webhook", {})
-        webhook_name = webhook_config.get("name", "Omnicorp Bot")
-        webhook_avatar_url = webhook_config.get("avatar")
+        webhook_name = webhook_config.get("name")
+        webhook = await get_webhook(target_channel, webhook_name)
 
         color_map = {
             "Blue": disnake.Color.blue(),
@@ -158,26 +162,7 @@ def setup_slash_commands_push(bot, channels_config, roles_config):
             embed.set_image(url=image_url)
 
         try:
-            avatar_bytes = None
-            if webhook_avatar_url:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(webhook_avatar_url) as resp:
-                        if resp.status == 200:
-                            avatar_bytes = await resp.read()
-
-            webhook = await target_channel.create_webhook(
-                name=webhook_name,
-                avatar=avatar_bytes
-            )
-
-            await webhook.send(
-                embed=embed,
-                username=webhook_name,
-                avatar_url=webhook_avatar_url
-            )
-
-            await webhook.delete()
-
+            await webhook.send(embed=embed)
             await inter.response.send_message("Message sent successfully!", ephemeral=True)
         except Exception as e:
             await inter.response.send_message(f"Error sending message: {str(e)}", ephemeral=True)

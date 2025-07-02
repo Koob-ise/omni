@@ -1,10 +1,14 @@
 from database.db import create_user
 import disnake
-from disnake import Embed, Webhook, ui
+from disnake import Embed, ui
 from disnake.ext import commands
 import asyncio
-
-
+async def get_webhook(channel, webhook_name):
+    webhooks = await channel.webhooks()
+    for webhook in webhooks:
+        if webhook.name == webhook_name:
+            return webhook
+    return None
 class LanguageSelect(ui.Select):
     def __init__(self, roles_config):
         self.roles_config = roles_config
@@ -37,7 +41,6 @@ class LanguageSelect(ui.Select):
         )
 
     async def callback(self, interaction: disnake.MessageInteraction):
-        # Немедленно отвечаем defer для предотвращения таймаута
         await interaction.response.defer(ephemeral=True)
 
         guild = interaction.guild
@@ -79,7 +82,6 @@ class LanguageSelect(ui.Select):
                     "• Вам доступны ВСЕ языковые каналы сервера"
                 )
 
-            # Отправляем результат через followup
             await interaction.followup.send(response_message, ephemeral=True)
 
         except disnake.Forbidden:
@@ -109,19 +111,18 @@ async def setup_read_first(bot: commands.Bot, guild_id: int, channels_config: di
     view = LanguageView(roles_config)
     bot.add_view(view)
 
-    # Получаем данные канала из конфига
     channel_data = channels_config["channels"].get("❗│read-first")
     if not channel_data:
         return
 
     channel_id = channel_data["id"]
     webhook_config = channel_data.get("webhook", {})
+    webhook_name = webhook_config.get("name")
 
     channel = guild.get_channel(channel_id)
     if not channel:
         return
 
-    # Удаляем сообщения от пользователей
     async for message in channel.history(limit=None):
         if not message.author.bot:
             try:
@@ -131,7 +132,6 @@ async def setup_read_first(bot: commands.Bot, guild_id: int, channels_config: di
                 pass
 
     has_welcome_message = False
-    # Проверяем существование welcome-сообщения
     async for message in channel.history(limit=100):
         is_bot_author = message.author == bot.user
         is_webhook_author = isinstance(message.author,
@@ -151,9 +151,10 @@ async def setup_read_first(bot: commands.Bot, guild_id: int, channels_config: di
         return
 
     try:
-        webhook = await channel.create_webhook(
-            name=webhook_config.get("name", "Omnicorp Bot")
-        )
+        webhook = await get_webhook(channel, webhook_name)
+        if not webhook:
+            log.error(f"Webhook '{webhook_name}' not found in #{channel.name}")
+            return
 
         embed = Embed(
             title="Добро пожаловать в OmniCorp! / Welcome to OmniCorp!",
@@ -180,13 +181,6 @@ async def setup_read_first(bot: commands.Bot, guild_id: int, channels_config: di
 
         embed.set_footer(text="OmniCorp © 2025")
 
-        await webhook.send(
-            embed=embed,
-            username=webhook_config.get("name", "Omnicorp Bot"),
-            avatar_url=webhook_config.get("avatar", None),
-            view=LanguageView(roles_config)
-        )
-
-        await webhook.delete()
-    except Exception:
-        pass
+        await webhook.send(embed=embed, view=LanguageView(roles_config))
+    except Exception as e:
+        log.error(f"Error sending welcome message: {e}")

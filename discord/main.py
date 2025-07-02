@@ -8,12 +8,14 @@ from utils.push import setup_slash_commands_push
 from test import test
 from utils.deleter import setup_slash_commands_deleter
 from feedback.setup import setup_feedback_channel
+from webhook_manager import setup_webhooks
 
 config_path = os.path.join(os.path.dirname(__file__), "../configs/config.toml")
 channels_path = os.path.join(os.path.dirname(__file__), "../configs/channels_config.json")
 roles_path = os.path.join(os.path.dirname(__file__), "../configs/roles_config.json")
 
 config = toml.load(config_path)
+
 with open(channels_path, "r", encoding="utf-8") as f:
     channels_config = json.load(f)
 with open(roles_path, "r", encoding="utf-8") as f:
@@ -33,6 +35,7 @@ test(bot, roles_config)
 
 @bot.event
 async def on_ready():
+    await setup_webhooks(bot, channels_path)
     await setup_read_first(
         bot=bot,
         guild_id=config["server"]["id"],

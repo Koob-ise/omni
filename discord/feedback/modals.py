@@ -6,8 +6,12 @@ from .config import config
 from database.db import create_ticket
 
 log = logging.getLogger(__name__)
-
-
+async def get_webhook(channel, webhook_name):
+    webhooks = await channel.webhooks()
+    for webhook in webhooks:
+        if webhook.name == webhook_name:
+            return webhook
+    return None
 class ConfirmCloseModal(ui.Modal):
     def __init__(self, channel, opener, ticket_data, lang="en"):
         texts = {
@@ -61,12 +65,10 @@ class ConfirmCloseModal(ui.Modal):
             transcript = await self._generate_transcript()
             embed = self._create_embed(closed_by)
 
-            # Отправляем лог и получаем ссылку на сообщение
             message_link = await self._send_log_and_get_link(modal_interaction, embed, transcript)
 
             if message_link:
                 try:
-                    # Сохраняем ссылку в БД как ID тикета
                     create_ticket(str(self.opener.id), message_link)
                     log.info(f"Ticket saved for {self.opener.id}: {message_link}")
                 except Exception as e:
@@ -135,11 +137,11 @@ class ConfirmCloseModal(ui.Modal):
         return embed
 
     async def _send_log_and_get_link(self, interaction, embed, transcript_text):
-        """Отправляет лог и возвращает ссылку на сообщение"""
         try:
             channels_config = config.channels
-            closed_channel_id = channels_config["channels"].get("📌│closed-tickets", {}).get("id")
-            if not closed_channel_id:
+            closed_channel_config = channels_config["channels"].get("📌│closed-tickets", {})
+            closed_channel_id = closed_channel_config.get("id")
+            if not closed_channel_config:
                 log.warning("Closed tickets channel not configured")
                 return None
 
@@ -148,15 +150,21 @@ class ConfirmCloseModal(ui.Modal):
                 log.error(f"Closed tickets channel not found: {closed_channel_id}")
                 return None
 
+            webhook_config = closed_channel_config.get("webhook", {})
+            webhook_name = webhook_config.get("name", "Omnicorp Bot")
+            webhook = await get_webhook(closed_channel, webhook_name)
+
             transcript_file = disnake.File(
                 io.BytesIO(transcript_text.encode('utf-8-sig')),
                 filename=f"transcript_{self.channel.name}.txt"
             )
 
-            # Отправляем сообщение и сразу получаем его объект
-            log_message = await closed_channel.send(embed=embed, file=transcript_file)
-            return log_message.jump_url
-
+            message = await webhook.send(
+                embed=embed,
+                file=transcript_file,
+                wait=True
+            )
+            return message.id
         except Exception as e:
             log.error(f"Log sending error: {e}")
             return None
