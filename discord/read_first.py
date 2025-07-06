@@ -3,38 +3,32 @@ import disnake
 from disnake import Embed, ui
 from disnake.ext import commands
 import asyncio
+from configs.read_first_config import messages
+import logging
+
+log = logging.getLogger(__name__)
+
 async def get_webhook(channel, webhook_name):
     webhooks = await channel.webhooks()
     for webhook in webhooks:
         if webhook.name == webhook_name:
             return webhook
     return None
+
 class LanguageSelect(ui.Select):
     def __init__(self, roles_config):
         self.roles_config = roles_config
         options = [
             disnake.SelectOption(
-                label="Русский",
-                description="Доступ к русскоязычным каналам",
-                emoji="🇷🇺",
-                value="russian"
-            ),
-            disnake.SelectOption(
-                label="English",
-                description="Access to English channels",
-                emoji="🇬🇧",
-                value="english"
-            ),
-            disnake.SelectOption(
-                label="Русский + English",
-                description="Доступ ко всем языковым каналам",
-                emoji="🌐",
-                value="bilingual"
-            )
+                label=opt["label"],
+                description=opt["description"],
+                emoji=opt["emoji"],
+                value=opt["value"]
+            ) for opt in messages["language_options"]
         ]
         super().__init__(
             custom_id="language_select",
-            placeholder="Выберите язык / Select language",
+            placeholder=messages["select_placeholder"],
             min_values=1,
             max_values=1,
             options=options
@@ -59,49 +53,32 @@ class LanguageSelect(ui.Select):
             response_message = ""
             if self.values[0] == "russian" and ru_role:
                 await member.add_roles(ru_role)
-                response_message = (
-                    "✅ Язык установлен: **Русский**\n\n"
-                    "• Этот канал будет скрыт\n"
-                    "• Для смены языка используйте канал #🔧│персонализация\n"
-                    "• Вам доступны русскоязычные каналы сервера"
-                )
+                response_message = messages["responses"]["russian"]
             elif self.values[0] == "english" and en_role:
                 await member.add_roles(en_role)
-                response_message = (
-                    "✅ Language set to: **English**\n\n"
-                    "• This channel will be hidden\n"
-                    "• To change language use #🔧│personalization channel\n"
-                    "• You now have access to English channels"
-                )
+                response_message = messages["responses"]["english"]
             elif self.values[0] == "bilingual" and both_role:
                 await member.add_roles(both_role)
-                response_message = (
-                    "✅ Language set to: **Russian + English**\n\n"
-                    "• Этот канал будет скрыт\n"
-                    "• Для смены языка используйте #🔧│персонализация или #🔧│personalization\n"
-                    "• Вам доступны ВСЕ языковые каналы сервера"
-                )
+                response_message = messages["responses"]["bilingual"]
 
             await interaction.followup.send(response_message, ephemeral=True)
 
         except disnake.Forbidden:
             await interaction.followup.send(
-                "❌ У бота недостаточно прав для управления ролями!",
+                messages["responses"]["forbidden"],
                 ephemeral=True
             )
         except Exception as e:
             await interaction.followup.send(
-                f"❌ Произошла ошибка: {str(e)}",
+                messages["responses"]["error"].format(error=str(e)),
                 ephemeral=True
             )
-
 
 class LanguageView(ui.View):
     def __init__(self, roles_config):
         super().__init__(timeout=None)
         self.roles_config = roles_config
         self.add_item(LanguageSelect(roles_config))
-
 
 async def setup_read_first(bot: commands.Bot, guild_id: int, channels_config: dict, roles_config: dict):
     guild = bot.get_guild(guild_id)
@@ -135,8 +112,8 @@ async def setup_read_first(bot: commands.Bot, guild_id: int, channels_config: di
     async for message in channel.history(limit=100):
         is_bot_author = message.author == bot.user
         is_webhook_author = isinstance(message.author,
-                                       disnake.User) and message.author.display_name == webhook_config.get("name",
-                                                                                                           "Omnicorp Bot")
+                                    disnake.User) and message.author.display_name == webhook_config.get("name",
+                                                                                                    "Omnicorp Bot")
 
         if is_bot_author or is_webhook_author:
             if message.embeds:
@@ -157,29 +134,15 @@ async def setup_read_first(bot: commands.Bot, guild_id: int, channels_config: di
             return
 
         embed = Embed(
-            title="Добро пожаловать в OmniCorp! / Welcome to OmniCorp!",
-            description=(
-                "**Пожалуйста, выберите ваш язык:**\n"
-                "**Please select your language:**\n\n"
-                "• Выбор языка определит доступные вам каналы\n"
-                "• Language selection will determine available channels\n\n"
-                "🇷🇺 **Русский** - доступ к русскоязычным каналам\n"
-                "🇬🇧 **English** - access to English channels\n"
-                "🌐 **Русский + English** - доступ ко ВСЕМ языковым каналам\n\n"
-                "**Важно:**\n"
-                "• После выбора этот канал будет скрыт\n"
-                "• Для смены языка используйте:\n"
-                "  - #🔧│персонализация (для русских)\n"
-                "  - #🔧│personalization (for English)\n\n"
-                "_Вы можете изменить язык в любое время_"
-            ),
-            color=disnake.Color.orange()
+            title=messages["welcome"]["title"],
+            description=messages["welcome"]["description"],
+            color=getattr(disnake.Color, messages["welcomeрепе"]["color"])()
         )
 
         if "banner" in webhook_config and webhook_config["banner"]:
             embed.set_image(url=webhook_config["banner"])
 
-        embed.set_footer(text="OmniCorp © 2025")
+        embed.set_footer(text=messages["welcome"]["footer"])
 
         await webhook.send(embed=embed, view=LanguageView(roles_config))
     except Exception as e:

@@ -2,7 +2,8 @@ import disnake
 from disnake import ui
 import time
 import logging
-from .config import TYPE_OPTIONS_RU, TYPE_OPTIONS, PLATFORM_OPTIONS_RU, PLATFORM_OPTIONS, MODAL_CONFIGS_RU, MODAL_CONFIGS
+from configs.feedback_config import TYPE_OPTIONS_RU, TYPE_OPTIONS, PLATFORM_OPTIONS_RU, PLATFORM_OPTIONS, \
+    MODAL_CONFIGS_RU, MODAL_CONFIGS
 from .ticket_utils import create_ticket_channel
 
 log = logging.getLogger(__name__)
@@ -21,11 +22,14 @@ class CloseTicketView(ui.View):
 
 
 class FeedbackView(ui.View):
-    def __init__(self, lang="en", is_russian=False, user_states=None):
+    def __init__(self, lang="en", is_russian=False, user_states=None, webhook_name=None, channel_id=None):
         super().__init__(timeout=None)
         self.lang = lang
         self.is_russian = is_russian
         self.user_states = user_states if user_states is not None else {}
+        self.webhook_name = webhook_name
+        self.channel_id = channel_id
+        self.message = None
 
         type_options = TYPE_OPTIONS_RU if is_russian else TYPE_OPTIONS
         type_placeholder = "Выберите тип обращения" if is_russian else "Select request type"
@@ -102,16 +106,30 @@ class FeedbackView(ui.View):
                 del self.user_states[state_key]
             return
 
+        selected_type = state["selected_type"]
+        selected_platform = state["selected_platform"]
+
+        if state_key in self.user_states:
+            del self.user_states[state_key]
+
+        new_view = FeedbackView(
+            lang=self.lang,
+            is_russian=self.is_russian,
+            user_states=self.user_states,
+            webhook_name=self.webhook_name,
+            channel_id=self.channel_id
+        )
+
         if self.is_russian:
-            modal_config = MODAL_CONFIGS_RU[state["selected_type"]]
-            title_for_ticket = MODAL_CONFIGS[state["selected_type"]]["title"]
+            modal_config = MODAL_CONFIGS_RU[selected_type]
+            title_for_ticket = MODAL_CONFIGS[selected_type]["title"]
         else:
-            modal_config = MODAL_CONFIGS[state["selected_type"]]
+            modal_config = MODAL_CONFIGS[selected_type]
             title_for_ticket = modal_config["title"]
 
         inputs = []
         for input_config in modal_config["inputs"]:
-            if "condition" in input_config and not input_config["condition"](state["selected_platform"]):
+            if "condition" in input_config and not input_config["condition"](selected_platform):
                 continue
             inputs.append(disnake.ui.TextInput(
                 label=input_config["label"],
@@ -120,14 +138,11 @@ class FeedbackView(ui.View):
                 max_length=input_config.get("max_length", 4000)
             ))
 
-        state_key_final = state_key
-        user_states_ref = self.user_states
-
         class FeedbackModal(disnake.ui.Modal):
             def __init__(self, is_russian):
                 super().__init__(
                     title=modal_config["title"],
-                    custom_id=f"modal_{state['selected_type']}_{state['selected_platform']}",
+                    custom_id=f"modal_{selected_type}_{selected_platform}",
                     components=inputs
                 )
                 self.is_russian = is_russian
@@ -138,7 +153,7 @@ class FeedbackView(ui.View):
                     channel = await create_ticket_channel(
                         modal_interaction,
                         title_for_ticket,
-                        state["selected_platform"],
+                        selected_platform,
                         modal_interaction.text_values,
                         lang="ru" if self.is_russian else "en"
                     )
@@ -148,8 +163,36 @@ class FeedbackView(ui.View):
                     log.error(f"Error creating ticket: {e}", exc_info=True)
                     error_msg = "❌ Ошибка при создании тикета" if self.is_russian else "❌ Error creating ticket"
                     await modal_interaction.followup.send(error_msg, ephemeral=True)
-                finally:
-                    if state_key_final in user_states_ref:
-                        del user_states_ref[state_key_final]
 
         await interaction.response.send_modal(FeedbackModal(is_russian=self.is_russian))
+
+        try:
+            channel = interaction.guild.get_channel(self.channel_id)
+            if not channel:
+                log.error(f"Channel not found: ID {self.channel_id}")
+                return
+
+            webhook = await self.find_webhook(channel, self.webhook_name)
+            if not webhook:
+                log.error(f"Webhook '{self.webhook_name}' not found in channel {channel.id}")
+                return
+
+            await webhook.edit_message(
+                interaction.message.id,
+                content=interaction.message.content,
+                embeds=interaction.message.embeds,
+                view=new_view
+            )
+        except Exception as e:
+            log.error(f"Error updating message via webhook: {e}")
+
+    async def find_webhook(self, channel, webhook_name):
+        try:
+            webhooks = await channel.webhooks()
+            for wh in webhooks:
+                if wh.name == webhook_name:
+                    return wh
+            return None
+        except Exception as e:
+            log.error(f"Error fetching webhooks: {e}")
+            return None

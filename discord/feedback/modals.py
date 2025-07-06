@@ -2,7 +2,7 @@ import disnake
 from disnake import ui, Embed
 import io
 import logging
-from .config import config
+from configs.feedback_config import config, TEXTS
 from database.db import create_ticket
 
 log = logging.getLogger(__name__)
@@ -14,27 +14,10 @@ async def get_webhook(channel, webhook_name):
     return None
 class ConfirmCloseModal(ui.Modal):
     def __init__(self, channel, opener, ticket_data, lang="en"):
-        texts = {
-            "en": {
-                "title": "Confirm Closure",
-                "label": "Confirmation",
-                "placeholder": "Type 'yes' to confirm",
-                "hint": "❗ Please type 'yes' to confirm closure",
-                "success": "✅ Ticket closed successfully",
-                "error": "❌ Invalid confirmation"
-            },
-            "ru": {
-                "title": "Подтверждение закрытия",
-                "label": "Подтверждение",
-                "placeholder": "Введите 'да' для подтверждения",
-                "hint": "❗ Введите 'да' для подтверждения",
-                "success": "✅ Тикет успешно закрыт",
-                "error": "❌ Неверное подтверждение"
-            }
-        }
+        texts = TEXTS[lang]["modals"]["confirm_close"]
 
         self.lang = lang
-        self.texts = texts.get(lang, texts["en"])
+        self.texts = texts.get(lang, texts)
         super().__init__(
             title=self.texts["title"],
             custom_id="confirm_close",

@@ -1,7 +1,7 @@
 import disnake
 from disnake import Embed
 import logging
-from .config import config, TYPE_OPTIONS_RU, TYPE_OPTIONS
+from configs.feedback_config import config, TYPE_OPTIONS_RU, TYPE_OPTIONS
 import aiohttp
 
 log = logging.getLogger(__name__)
