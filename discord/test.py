@@ -21,3 +21,4 @@ def test(bot, roles_config):
             return
 
         await inter.response.send_message('нормально все')
+

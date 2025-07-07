@@ -3,7 +3,7 @@ from disnake import Embed
 import asyncio
 import time
 import logging
-from configs.feedback_config import config
+from configs.feedback_config import config, TEXTS
 from .views import FeedbackView
 
 log = logging.getLogger(__name__)
@@ -11,12 +11,14 @@ log = logging.getLogger(__name__)
 user_states = {}
 last_cleanup = time.time()
 
+
 async def get_webhook(channel, webhook_name):
     webhooks = await channel.webhooks()
     for webhook in webhooks:
         if webhook.name == webhook_name:
             return webhook
     return None
+
 
 async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
     config.init(channels_config, roles_config)
@@ -30,14 +32,16 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
         message = await channel.fetch_message(interaction.message.id)
 
         if not message.embeds:
-            await interaction.response.send_message("❌ Ticket information not found", ephemeral=True)
+            texts = TEXTS.get("ru", TEXTS["en"])["setup"]["errors"]
+            await interaction.response.send_message(texts["ticket_info"], ephemeral=True)
             return
 
         embed = message.embeds[0]
         footer_text = embed.footer.text
 
         if not footer_text:
-            await interaction.response.send_message("❌ Metadata not found in ticket", ephemeral=True)
+            texts = TEXTS.get("ru", TEXTS["en"])["setup"]["errors"]
+            await interaction.response.send_message(texts["metadata"], ephemeral=True)
             return
 
         metadata = {}
@@ -47,7 +51,8 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
                 metadata[key] = value
 
         if "ticket_type" not in metadata or "lang" not in metadata or "opener" not in metadata:
-            await interaction.response.send_message("❌ Invalid ticket metadata", ephemeral=True)
+            texts = TEXTS.get("ru", TEXTS["en"])["setup"]["errors"]
+            await interaction.response.send_message(texts["invalid_metadata"], ephemeral=True)
             return
 
         ticket_type = metadata["ticket_type"]
@@ -59,12 +64,14 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
             try:
                 opener = await interaction.guild.fetch_member(opener_id)
             except disnake.NotFound:
-                await interaction.response.send_message("❌ Ticket opener not found", ephemeral=True)
+                texts = TEXTS.get("ru", TEXTS["en"])["setup"]["errors"]
+                await interaction.response.send_message(texts["opener"], ephemeral=True)
                 return
 
         platform_field = next((field for field in embed.fields if field.name in ["Platform", "Платформа"]), None)
         if not platform_field:
-            await interaction.response.send_message("❌ Platform information not found", ephemeral=True)
+            texts = TEXTS.get("ru", TEXTS["en"])["setup"]["errors"]
+            await interaction.response.send_message(texts["platform"], ephemeral=True)
             return
         platform = platform_field.value
 
@@ -92,83 +99,79 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
         log.error(f"Сервер с ID {guild_id} не найден")
         return
 
-    ru_key = "⚖│обратная-связь"
-    ru_ch_cfg = channels_config["channels"].get(ru_key)
-    if ru_ch_cfg:
-        ru_channel = guild.get_channel(ru_ch_cfg["id"])
-        if ru_channel:
+    async def setup_channel(ch_key, lang, is_russian):
+        ch_cfg = channels_config["channels"].get(ch_key)
+        if not ch_cfg:
+            log.error(f"Конфиг для канала {ch_key} не найден")
+            return
+
+        channel = guild.get_channel(ch_cfg["id"])
+        if not channel:
+            log.error(f"Канал не найден: ID {ch_cfg['id']}")
+            return
+
+        webhook_name = ch_cfg["webhook"]["name"]
+        webhook = await get_webhook(channel, webhook_name)
+        if not webhook:
             try:
-                await ru_channel.purge(limit=100)
-                webhook_name = ru_ch_cfg["webhook"]["name"]
-                ru_webhook = await get_webhook(ru_channel, webhook_name)
-                ru_embed = Embed(
-                    title="Обратная связь",
-                    description=(
-                        "**1.** Выберите тип обращения: `Жалоба`, `Апелляция` или `Заявка на стафф`\n"
-                        "**2.** Выберите платформу: `Mindustry` или `Discord`\n"
-                        "**3.** Нажмите кнопку `Заполнить форму`\n\n"
-                        "После заполнения формы будет создан приватный канал, доступный только вам и администрации."
-                    ),
-                    color=disnake.Color.orange(),
-                )
-                ru_view = FeedbackView(
-                    lang="ru",
-                    is_russian=True,
-                    user_states=user_states,
-                    webhook_name=webhook_name,
-                    channel_id=ru_channel.id
-                )
-
-                if "banner" in channels_config["channels"].get(ru_key).get("webhook", {}) and channels_config["channels"].get(ru_key).get("webhook", {})["banner"]:
-                    ru_embed.set_image(url=channels_config["channels"].get(ru_key).get("webhook", {})["banner"])
-
-                ru_message = await ru_webhook.send(embed=ru_embed, view=ru_view, wait=True)
-                ru_view.message = ru_message
+                webhook = await channel.create_webhook(name=webhook_name)
+                log.info(f"Создан новый вебхук: {webhook_name}")
             except Exception as e:
-                log.error(f"Ошибка настройки русского канала: {e}")
-        else:
-            log.error(f"Русский канал не найден: ID {ru_ch_cfg['id']}")
-    else:
-        log.error("Конфиг для русского канала не найден")
+                log.error(f"Ошибка создания вебхука: {e}")
+                return
 
-    en_key = "⚖│feedback"
-    en_ch_cfg = channels_config["channels"].get(en_key)
-    if en_ch_cfg:
-        en_channel = guild.get_channel(en_ch_cfg["id"])
-        if en_channel:
+        existing_message = None
+        async for message in channel.history(limit=100):
+            if message.author.id == webhook.id and message.embeds:
+                existing_message = message
+                break
+
+        texts = TEXTS[lang]["setup"]["feedback"]
+        embed = Embed(
+            title=texts["title"],
+            description=texts["description"],
+            color=disnake.Color.orange(),
+        )
+
+        if "banner" in ch_cfg.get("webhook", {}) and ch_cfg["webhook"]["banner"]:
+            embed.set_image(url=ch_cfg["webhook"]["banner"])
+
+        view = FeedbackView(
+            lang=lang,
+            is_russian=is_russian,
+            user_states=user_states,
+            webhook_name=webhook_name,
+            channel_id=channel.id
+        )
+
+        if existing_message:
             try:
-                await en_channel.purge(limit=100)
-                webhook_name = en_ch_cfg["webhook"]["name"]
-                en_webhook = await get_webhook(en_channel, webhook_name)
-                en_embed = Embed(
-                    title="Feedback System",
-                    description=(
-                        "**1.** Select request type: `Complaint`, `Appeal` or `Staff Application`\n"
-                        "**2.** Select platform: `Mindustry` or `Discord`\n"
-                        "**3.** Click `Fill Form` button\n\n"
-                        "After submitting the form, a private channel will be created accessible only to you and staff."
-                    ),
-                    color=disnake.Color.orange(),
+                await webhook.edit_message(
+                    existing_message.id,
+                    embed=embed,
+                    view=view
                 )
-                en_view = FeedbackView(
-                    lang="en",
-                    is_russian=False,
-                    user_states=user_states,
-                    webhook_name=webhook_name,
-                    channel_id=en_channel.id
-                )
-
-                if "banner" in channels_config["channels"].get(en_key).get("webhook", {}) and channels_config["channels"].get(en_key).get("webhook", {})["banner"]:
-                    en_embed.set_image(url=channels_config["channels"].get(en_key).get("webhook", {})["banner"])
-
-                en_message = await en_webhook.send(embed=en_embed, view=en_view, wait=True)
-                en_view.message = en_message
+                log.info(f"Сообщение в канале {channel.name} обновлено")
+                view.message = existing_message
             except Exception as e:
-                log.error(f"Error setting up English feedback: {e}")
+                log.error(f"Ошибка обновления сообщения: {e}")
         else:
-            log.error(f"English feedback channel not found: ID {en_ch_cfg['id']}")
-    else:
-        log.error("English feedback config not found")
+            try:
+                message = await webhook.send(
+                    embed=embed,
+                    view=view,
+                    wait=True
+                )
+                view.message = message
+                log.info(f"Отправлено новое сообщение в канал {channel.name}")
+            except Exception as e:
+                log.error(f"Ошибка отправки сообщения: {e}")
+
+        if view.message:
+            bot.add_view(view, message_id=view.message.id)
+
+    await setup_channel("⚖│обратная-связь", "ru", True)
+    await setup_channel("⚖│feedback", "en", False)
 
     async def cleanup_task():
         while True:

@@ -1,6 +1,5 @@
 from disnake import TextInputStyle
 
-
 class Config:
     _instance = None
 
@@ -29,6 +28,12 @@ class Config:
 
 
 config = Config()
+
+TICKET_COLORS = {
+    "Complaint": "red",
+    "Appeal": "orange",
+    "Staff Application": "green"
+}
 
 TYPE_OPTIONS = [
     {"label": "Complaint", "value": "complaint", "emoji": "⚠️"},
@@ -128,7 +133,10 @@ TEXTS = {
                 "placeholder": "Type 'yes' to confirm",
                 "hint": "❗ Please type 'yes' to confirm closure",
                 "success": "✅ Ticket closed successfully",
-                "error": "❌ Invalid confirmation"
+                "error": "❌ Invalid confirmation",
+                "db_error": "⚠️ Ticket save error",
+                "delete_error": "❌ Channel deletion error",
+                "critical_error": "❌ Critical error"
             },
             "embed_titles": {
                 "closed_ticket": "Closed ticket: {title}",
@@ -153,9 +161,7 @@ TEXTS = {
                 "metadata": "❌ Metadata not found in ticket",
                 "invalid_metadata": "❌ Invalid ticket metadata",
                 "opener": "❌ Ticket opener not found",
-                "platform": "❌ Platform information not found",
-                "save_error": "⚠️ Ticket save error",
-                "delete_error": "❌ Channel deletion error"
+                "platform": "❌ Platform information not found"
             }
         },
         "ticket_utils": {
@@ -183,7 +189,10 @@ TEXTS = {
                 "placeholder": "Введите 'да' для подтверждения",
                 "hint": "❗ Введите 'да' для подтверждения",
                 "success": "✅ Тикет успешно закрыт",
-                "error": "❌ Неверное подтверждение"
+                "error": "❌ Неверное подтверждение",
+                "db_error": "⚠️ Ошибка сохранения тикета",
+                "delete_error": "❌ Ошибка удаления канала",
+                "critical_error": "❌ Критическая ошибка"
             },
             "embed_titles": {
                 "closed_ticket": "Закрытый тикет: {title}",
@@ -208,9 +217,7 @@ TEXTS = {
                 "metadata": "❌ Метаданные не найдены в тикете",
                 "invalid_metadata": "❌ Неверные метаданные тикета",
                 "opener": "❌ Автор тикета не найден",
-                "platform": "❌ Информация о платформе не найдена",
-                "save_error": "⚠️ Ошибка сохранения тикета",
-                "delete_error": "❌ Ошибка удаления канала"
+                "platform": "❌ Информация о платформе не найдена"
             }
         },
         "ticket_utils": {

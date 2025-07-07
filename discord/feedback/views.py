@@ -3,7 +3,7 @@ from disnake import ui
 import time
 import logging
 from configs.feedback_config import TYPE_OPTIONS_RU, TYPE_OPTIONS, PLATFORM_OPTIONS_RU, PLATFORM_OPTIONS, \
-    MODAL_CONFIGS_RU, MODAL_CONFIGS
+    MODAL_CONFIGS_RU, MODAL_CONFIGS, TEXTS
 from .ticket_utils import create_ticket_channel
 
 log = logging.getLogger(__name__)
@@ -13,9 +13,10 @@ class CloseTicketView(ui.View):
     def __init__(self, lang="en"):
         super().__init__(timeout=None)
         self.lang = lang
+        texts = TEXTS[lang]["views"]
 
         self.add_item(ui.Button(
-            label="Закрыть тикет" if lang == "ru" else "Close Ticket",
+            label=texts["close_ticket"],
             style=disnake.ButtonStyle.red,
             custom_id="persistent_close_ticket"
         ))
@@ -31,10 +32,10 @@ class FeedbackView(ui.View):
         self.channel_id = channel_id
         self.message = None
 
+        texts = TEXTS[lang]["views"]
         type_options = TYPE_OPTIONS_RU if is_russian else TYPE_OPTIONS
-        type_placeholder = "Выберите тип обращения" if is_russian else "Select request type"
         self.type_select = ui.StringSelect(
-            placeholder=type_placeholder,
+            placeholder=texts["type_placeholder"],
             min_values=1,
             max_values=1,
             options=[disnake.SelectOption(**opt) for opt in type_options],
@@ -44,9 +45,8 @@ class FeedbackView(ui.View):
         self.add_item(self.type_select)
 
         platform_options = PLATFORM_OPTIONS_RU if is_russian else PLATFORM_OPTIONS
-        platform_placeholder = "Выберите платформу" if is_russian else "Select platform"
         self.platform_select = ui.StringSelect(
-            placeholder=platform_placeholder,
+            placeholder=texts["platform_placeholder"],
             min_values=1,
             max_values=1,
             options=[disnake.SelectOption(**opt) for opt in platform_options],
@@ -55,9 +55,8 @@ class FeedbackView(ui.View):
         self.platform_select.callback = self.platform_callback
         self.add_item(self.platform_select)
 
-        submit_label = "Заполнить форму" if is_russian else "Fill Form"
         self.submit_button = ui.Button(
-            label=submit_label,
+            label=texts["submit_button"],
             style=disnake.ButtonStyle.green,
             custom_id=f"submit_{lang}"
         )
@@ -93,14 +92,17 @@ class FeedbackView(ui.View):
     async def submit_callback(self, interaction: disnake.MessageInteraction):
         state_key = (interaction.message.id, interaction.user.id)
         state = self.user_states.get(state_key, {})
+        texts = TEXTS[self.lang]["views"]
+
+        error_msg = None
 
         if not (state.get("selected_type") and state.get("selected_platform")):
-            error_msg = "❗ Сначала выберите тип и платформу." if self.is_russian else "❗ Please select both type and platform first."
+            error_msg = texts["errors"]["select_both"]
             await interaction.response.send_message(error_msg, ephemeral=True)
             return
 
         if time.time() - state.get("timestamp", 0) > 1800:
-            error_msg = "❗ Ваш выбор устарел, начните заново." if self.is_russian else "❗ Your selection has expired, please start over."
+            error_msg = texts["errors"]["expired"]
             await interaction.response.send_message(error_msg, ephemeral=True)
             if state_key in self.user_states:
                 del self.user_states[state_key]
@@ -138,6 +140,8 @@ class FeedbackView(ui.View):
                 max_length=input_config.get("max_length", 4000)
             ))
 
+        texts_utils = TEXTS[self.lang]["ticket_utils"]
+
         class FeedbackModal(disnake.ui.Modal):
             def __init__(self, is_russian):
                 super().__init__(
@@ -157,11 +161,11 @@ class FeedbackView(ui.View):
                         modal_interaction.text_values,
                         lang="ru" if self.is_russian else "en"
                     )
-                    success_msg = f"✅ Канал создан: {channel.mention}" if self.is_russian else f"✅ Channel created: {channel.mention}"
+                    success_msg = texts_utils["success"].format(channel=channel.mention)
                     await modal_interaction.followup.send(success_msg, ephemeral=True)
                 except Exception as e:
                     log.error(f"Error creating ticket: {e}", exc_info=True)
-                    error_msg = "❌ Ошибка при создании тикета" if self.is_russian else "❌ Error creating ticket"
+                    error_msg = texts_utils["error"]
                     await modal_interaction.followup.send(error_msg, ephemeral=True)
 
         await interaction.response.send_modal(FeedbackModal(is_russian=self.is_russian))

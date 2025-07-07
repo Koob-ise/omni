@@ -2,22 +2,26 @@ import disnake
 from disnake import ui, Embed
 import io
 import logging
-from configs.feedback_config import config, TEXTS
+from configs.feedback_config import config, TEXTS, TICKET_COLORS
 from database.db import create_ticket
 
 log = logging.getLogger(__name__)
+
+
 async def get_webhook(channel, webhook_name):
     webhooks = await channel.webhooks()
     for webhook in webhooks:
         if webhook.name == webhook_name:
             return webhook
     return None
+
+
 class ConfirmCloseModal(ui.Modal):
     def __init__(self, channel, opener, ticket_data, lang="en"):
         texts = TEXTS[lang]["modals"]["confirm_close"]
 
         self.lang = lang
-        self.texts = texts.get(lang, texts)
+        self.texts = texts
         super().__init__(
             title=self.texts["title"],
             custom_id="confirm_close",
@@ -57,7 +61,7 @@ class ConfirmCloseModal(ui.Modal):
                 except Exception as e:
                     log.error(f"Error saving ticket to DB: {e}")
                     await modal_interaction.followup.send(
-                        f"⚠️ {'Ошибка сохранения тикета' if self.lang == 'ru' else 'Ticket save error'}",
+                        self.texts["db_error"],
                         ephemeral=True
                     )
             else:
@@ -72,14 +76,14 @@ class ConfirmCloseModal(ui.Modal):
             except Exception as e:
                 log.error(f"Channel deletion error: {e}")
                 await modal_interaction.followup.send(
-                    f"❌ {'Ошибка удаления канала' if self.lang == 'ru' else 'Channel deletion error'}",
+                    self.texts["delete_error"],
                     ephemeral=True
                 )
 
         except Exception as e:
             log.error(f"Critical error in modal window: {e}")
             await modal_interaction.followup.send(
-                f"❌ {'Критическая ошибка' if self.lang == 'ru' else 'Critical error'}",
+                self.texts["critical_error"],
                 ephemeral=True
             )
 
@@ -101,15 +105,18 @@ class ConfirmCloseModal(ui.Modal):
         return "\n".join(transcript)
 
     def _create_embed(self, closed_by):
+        texts = TEXTS[self.lang]["modals"]["embed_titles"]
+        ticket_type = self.ticket_data['type']
+
         embed = Embed(
-            title=f"Closed ticket: {self.ticket_data['title']}",
-            color=disnake.Color.red(),
+            title=texts["closed_ticket"].format(title=self.ticket_data['title']),
+            color=getattr(disnake.Color, TICKET_COLORS[ticket_type])(),
             timestamp=disnake.utils.utcnow()
         )
-        embed.add_field(name="Type", value=self.ticket_data['type'], inline=True)
-        embed.add_field(name="Platform", value=self.ticket_data['platform'], inline=True)
-        embed.add_field(name="Opened by", value=self.opener.mention, inline=True)
-        embed.add_field(name="Closed by", value=closed_by.mention, inline=True)
+        embed.add_field(name=texts["type"], value=ticket_type, inline=True)
+        embed.add_field(name=texts["platform"], value=self.ticket_data['platform'], inline=True)
+        embed.add_field(name=texts["opened_by"], value=self.opener.mention, inline=True)
+        embed.add_field(name=texts["closed_by"], value=closed_by.mention, inline=True)
 
         for field_name, field_value in self.ticket_data['content'].items():
             embed.add_field(

@@ -1,7 +1,7 @@
 import disnake
 from disnake import Embed
 import logging
-from configs.feedback_config import config, TYPE_OPTIONS_RU, TYPE_OPTIONS
+from configs.feedback_config import config, TEXTS
 import aiohttp
 
 log = logging.getLogger(__name__)
@@ -46,11 +46,7 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
         }
         log.debug(f"Initial overwrites: {overwrites.keys()}")
 
-        if lang == "ru":
-            ticket_type = next((opt["value"] for opt in TYPE_OPTIONS_RU if opt["label"] == title), title)
-        else:
-            ticket_type = next((opt["value"] for opt in TYPE_OPTIONS if opt["label"] == title), title)
-        log.info(f"Ticket type: {ticket_type}")
+        ticket_type = title
 
         channel_key = f"{platform.capitalize()}-{ticket_type}"
         log.info(f"Channel key: {channel_key}")
@@ -116,12 +112,18 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
         )
         log.info(f"Webhook created: {webhook.name}")
 
+        texts = TEXTS[lang]["ticket_utils"]
+        title_text = texts["ticket_title"].format(
+            title=title,
+            user=interaction.author.display_name
+        )
+
         embed = Embed(
-            title=f"{title} {'от' if lang == 'ru' else 'by'} {interaction.author.display_name}",
+            title=title_text,
             color=disnake.Color.green()
         )
         embed.add_field(
-            name="Платформа" if lang == "ru" else "Platform",
+            name=texts["platform_field"],
             value=platform.capitalize(),
             inline=False
         )
@@ -137,7 +139,7 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
 
         from .views import CloseTicketView
         close_view = CloseTicketView(lang=lang)
-        await webhook.send(embed=embed,view=close_view)
+        await webhook.send(embed=embed, view=close_view)
         log.info("Ticket message sent to channel via webhook")
 
         await webhook.delete()

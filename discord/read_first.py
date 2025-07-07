@@ -136,7 +136,7 @@ async def setup_read_first(bot: commands.Bot, guild_id: int, channels_config: di
         embed = Embed(
             title=messages["welcome"]["title"],
             description=messages["welcome"]["description"],
-            color=getattr(disnake.Color, messages["welcomeрепе"]["color"])()
+            color=getattr(disnake.Color, messages["welcome"]["color"])()
         )
 
         if "banner" in webhook_config and webhook_config["banner"]:
