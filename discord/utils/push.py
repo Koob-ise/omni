@@ -1,12 +1,14 @@
 import disnake
-from disnake import Option, OptionType, TextInputStyle
+from disnake import Option, OptionType, TextInputStyle, HTTPException
 from disnake.ui import TextInput, Modal
+
 async def get_webhook(channel, webhook_name):
     webhooks = await channel.webhooks()
     for webhook in webhooks:
         if webhook.name == webhook_name:
             return webhook
     return None
+
 def setup_slash_commands_push(bot, channels_config, roles_config):
     command_data = {}
 
@@ -36,7 +38,8 @@ def setup_slash_commands_push(bot, channels_config, roles_config):
                 name="color",
                 description="Select the embed color",
                 required=True,
-                choices=["Blue", "Red", "Green", "Yellow", "Purple", "Orange", "Teal", "Pink", "Gray", "Black"],
+                # Обновленные названия цветов
+                choices=["blue", "red", "green", "yellow", "purple", "orange", "teal", "magenta", "light_grey", "default"],
                 type=OptionType.string
             ),
             Option(
@@ -91,6 +94,7 @@ def setup_slash_commands_push(bot, channels_config, roles_config):
             )
 
         file_url = image_file.url if image_file else image_url
+
         command_data[inter.id] = {
             "channel": channel,
             "color": color,
@@ -119,7 +123,7 @@ def setup_slash_commands_push(bot, channels_config, roles_config):
         del command_data[original_inter_id]
 
         channel = data["channel"]
-        color = data["color"]
+        color_name = data["color"]
         image_url = data["image_url"]
         channels_config = data["channels_config"]
 
@@ -136,33 +140,46 @@ def setup_slash_commands_push(bot, channels_config, roles_config):
         webhook_name = webhook_config.get("name")
         webhook = await get_webhook(target_channel, webhook_name)
 
-        color_map = {
-            "Blue": disnake.Color.blue(),
-            "Red": disnake.Color.red(),
-            "Green": disnake.Color.green(),
-            "Yellow": disnake.Color.yellow(),
-            "Purple": disnake.Color.purple(),
-            "Orange": disnake.Color.orange(),
-            "Teal": disnake.Color.teal(),
-            "Pink": disnake.Color.magenta(),
-            "Gray": disnake.Color.light_grey(),
-            "Black": disnake.Color.default()
-        }
+        try:
+            color_attr = color_name.lower()
+            color_obj = getattr(disnake.Color, color_attr)()
+        except AttributeError:
+            color_obj = disnake.Color.default()
 
         embed = disnake.Embed(
             title=title,
             description=description,
-            color=color_map[color]
+            color=color_obj
         )
         embed.set_footer(
             text=f"{inter.author.display_name} | OmniCorp © 2025",
             icon_url=inter.author.avatar.url if inter.author.avatar else inter.author.default_avatar.url
         )
         if image_url:
-            embed.set_image(url=image_url)
+            try:
+                embed.set_image(url=image_url)
+            except Exception:
+                return await inter.response.send_message(
+                    "The image URL is invalid or unsupported by Discord. Please check the link.",
+                    ephemeral=True
+                )
 
         try:
             await webhook.send(embed=embed)
             await inter.response.send_message("Message sent successfully!", ephemeral=True)
+        except HTTPException as e:
+            if "embeds.0.image.url" in str(e):
+                await inter.response.send_message(
+                    "Invalid image URL provided. Please check the link.",
+                    ephemeral=True
+                )
+            else:
+                await inter.response.send_message(
+                    f"Error sending message: {e.text or str(e)}",
+                    ephemeral=True
+                )
         except Exception as e:
-            await inter.response.send_message(f"Error sending message: {str(e)}", ephemeral=True)
+            await inter.response.send_message(
+                f"Unexpected error: {str(e)}",
+                ephemeral=True
+            )

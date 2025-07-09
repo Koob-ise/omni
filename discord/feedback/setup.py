@@ -3,7 +3,7 @@ from disnake import Embed
 import asyncio
 import time
 import logging
-from configs.feedback_config import config, TEXTS
+from configs.feedback_config import config, TEXTS, TICKET_COLORS
 from .views import FeedbackView
 
 log = logging.getLogger(__name__)
@@ -126,11 +126,18 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
                 existing_message = message
                 break
 
+        color_name = TICKET_COLORS.get("feedback", "orange")
+        if hasattr(disnake.Color, color_name):
+            color = getattr(disnake.Color, color_name)()
+        else:
+            color = disnake.Color.orange()
+            log.warning(f"Unknown color name: {color_name}, using orange fallback")
+
         texts = TEXTS[lang]["setup"]["feedback"]
         embed = Embed(
             title=texts["title"],
             description=texts["description"],
-            color=disnake.Color.orange(),
+            color=color,
         )
 
         if "banner" in ch_cfg.get("webhook", {}) and ch_cfg["webhook"]["banner"]:

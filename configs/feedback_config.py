@@ -32,7 +32,8 @@ config = Config()
 TICKET_COLORS = {
     "Complaint": "red",
     "Appeal": "orange",
-    "Staff Application": "green"
+    "Staff Application": "green",
+    "feedback": "green"
 }
 
 TYPE_OPTIONS = [

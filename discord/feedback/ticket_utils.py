@@ -1,11 +1,10 @@
 import disnake
 from disnake import Embed
 import logging
-from configs.feedback_config import config, TEXTS
+from configs.feedback_config import config, TEXTS, TICKET_COLORS
 import aiohttp
 
 log = logging.getLogger(__name__)
-
 
 async def create_ticket_channel(interaction, title, platform, form_data, lang="en"):
     try:
@@ -17,21 +16,9 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
         log.debug(f"Channels config: {channels_config}")
         log.debug(f"Roles config: {roles_config}")
 
-        if not channels_config.get("categories"):
-            log.error("No categories in config")
-            raise ValueError("No categories configured")
-
-        category_id = None
-        category_webhook_config = None
-        for cat_name, cat_data in channels_config["categories"].items():
-            if cat_data.get("id"):
-                category_id = cat_data["id"]
-                category_webhook_config = cat_data.get("webhook", {})
-                break
-
-        if not category_id:
-            log.error("No category ID found in config")
-            raise ValueError("Ticket category not configured")
+        cat_data = channels_config["categories"]["❓│Помощь / Support"]
+        category_id = cat_data.get("id")
+        category_webhook_config = cat_data.get("webhook", {})
 
         log.debug(f"Category ID: {category_id}")
         category = interaction.guild.get_channel(category_id)
@@ -98,13 +85,14 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
         webhook_avatar_url = category_webhook_config.get("avatar")
 
         avatar_bytes = None
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(webhook_avatar_url) as resp:
-                    if resp.status == 200:
-                        avatar_bytes = await resp.read()
-        except Exception as e:
-            log.error(f"Error downloading webhook avatar: {e}")
+        if webhook_avatar_url:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(webhook_avatar_url) as resp:
+                        if resp.status == 200:
+                            avatar_bytes = await resp.read()
+            except Exception as e:
+                log.error(f"Error downloading webhook avatar: {e}")
 
         webhook = await channel.create_webhook(
             name=webhook_name,
@@ -118,9 +106,17 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
             user=interaction.author.display_name
         )
 
+        color_name = TICKET_COLORS.get(title, "green")
+
+        if hasattr(disnake.Color, color_name):
+            color = getattr(disnake.Color, color_name)()
+        else:
+            color = disnake.Color.green()
+            log.warning(f"Unknown color name: {color_name}, using green fallback")
+
         embed = Embed(
             title=title_text,
-            color=disnake.Color.green()
+            color=color
         )
         embed.add_field(
             name=texts["platform_field"],
