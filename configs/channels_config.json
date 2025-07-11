@@ -54,13 +54,6 @@
         "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128"
       }
     },
-    "🎮│статус-сервера": {
-      "id": 1381440347472793620,
-      "webhook": {
-        "name": "🎮 Game Bot",
-        "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128"
-      }
-    },
     "📢│новости": {
       "id": 1381440302447071284,
       "webhook": {
@@ -89,13 +82,6 @@
         "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128"
       }
     },
-    "🎮│server-status": {
-      "id": 1381440398555222099,
-      "webhook": {
-        "name": "🎮 Game Bot",
-        "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128"
-      }
-    },
     "📢│announcements": {
       "id": 1381440366896484392,
       "webhook": {
@@ -109,6 +95,20 @@
         "name": "📌 Tickets Bot",
         "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128"
       }
+    }
+  },
+  "voice_channels": {
+    "All members": {
+      "id": 1393051680764858428
+    },
+    "Members": {
+      "id": 1393051859060789299
+    },
+    "Boosts": {
+      "id": 1393051873098858587
+    },
+    "Boost tier": {
+      "id": 1393051933614542970
     }
   }
 }

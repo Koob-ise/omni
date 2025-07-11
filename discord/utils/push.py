@@ -24,21 +24,19 @@ def setup_slash_commands_push(bot, channels_config, roles_config):
 
     @bot.slash_command(
         name="push",
-        description="Posting news, server status, or update information in the selected channel.",
+        description="Update information in the selected channel.",
         options=[
             Option(
                 name="channel",
                 description="Select a channel to send the message to",
                 required=True,
-                choices=["🔄│updates", "🎮│server-status", "📢│announcements", "🔄│обновления", "🎮│статус-сервера",
-                         "📢│новости"],
+                choices=["🔄│updates", "📢│announcements","📌│server-info", "📜│rules", "🔄│обновления", "📢│новости", "📌│информация", "📜│правила"],
                 type=OptionType.string
             ),
             Option(
                 name="color",
                 description="Select the embed color",
                 required=True,
-                # Обновленные названия цветов
                 choices=["blue", "red", "green", "yellow", "purple", "orange", "teal", "magenta", "light_grey", "default"],
                 type=OptionType.string
             ),
