@@ -7,7 +7,7 @@
   "staff_roles": {
     "Discord Developer": {
       "id": 1381434949919445163,
-      "permissions": "push-🔄│updates, test, Mindustry-Complaint, push-📜│rules"
+      "permissions": "push-🔄│updates, test, Mindustry-Complaint, push-📜│rules, mute, kick, ban, unban"
     },
     "Discord Trial Developer": {
       "id": 1384646199948087508,

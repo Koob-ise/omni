@@ -7,7 +7,6 @@ from database.db import create_ticket
 
 log = logging.getLogger(__name__)
 
-
 async def get_webhook(channel, webhook_name):
     webhooks = await channel.webhooks()
     for webhook in webhooks:
@@ -15,77 +14,67 @@ async def get_webhook(channel, webhook_name):
             return webhook
     return None
 
-
-class ConfirmCloseModal(ui.Modal):
+class ConfirmCloseModal(ui.View):
     def __init__(self, channel, opener, ticket_data, lang="en"):
-        texts = TEXTS[lang]["modals"]["confirm_close"]
-
-        self.lang = lang
-        self.texts = texts
-        super().__init__(
-            title=self.texts["title"],
-            custom_id="confirm_close",
-            components=[
-                ui.TextInput(
-                    label=self.texts["label"],
-                    placeholder=self.texts["placeholder"],
-                    custom_id="confirm",
-                    style=disnake.TextInputStyle.short,
-                    required=True,
-                    max_length=3
-                )
-            ]
-        )
+        super().__init__(timeout=60)
         self.channel = channel
         self.opener = opener
         self.ticket_data = ticket_data
+        self.lang = lang
+        self.texts = TEXTS[lang]["modals"]["confirm_close"]
+        self.confirmation_text = self.texts.get(
+            "confirmation_message",
+            "Are you sure you want to close the ticket?" if lang == "en" else "Вы уверены, что хотите закрыть тикет?"
+        )
 
-    async def callback(self, modal_interaction):
-        try:
-            await modal_interaction.response.defer(ephemeral=True)
-            user_input = modal_interaction.text_values["confirm"].lower()
-            if not (user_input == "yes" or (self.lang == "ru" and user_input == "да")):
-                await modal_interaction.followup.send(self.texts["error"], ephemeral=True)
-                return
+    @ui.button(label="Close", style=disnake.ButtonStyle.danger, custom_id="close_ticket")
+    @ui.button(label="Close", style=disnake.ButtonStyle.danger, custom_id="close_ticket")
+    async def close_button(self, button: ui.Button, interaction: disnake.MessageInteraction):
+        await interaction.response.defer(ephemeral=True)
+        closed_by = interaction.user
+        transcript = await self._generate_transcript()
+        embed = self._create_embed(closed_by)
+        message_link = await self._send_log_and_get_link(interaction, embed, transcript)
 
-            closed_by = modal_interaction.user
-            transcript = await self._generate_transcript()
-            embed = self._create_embed(closed_by)
-
-            message_link = await self._send_log_and_get_link(modal_interaction, embed, transcript)
-
-            if message_link:
-                try:
-                    create_ticket(str(self.opener.id), message_link)
-                    log.info(f"Ticket saved for {self.opener.id}: {message_link}")
-                except Exception as e:
-                    log.error(f"Error saving ticket to DB: {e}")
-                    await modal_interaction.followup.send(
-                        self.texts["db_error"],
-                        ephemeral=True
-                    )
-            else:
-                log.warning("Failed to get message link for ticket")
-
-            await modal_interaction.followup.send(self.texts["success"], ephemeral=True)
-
+        if message_link:
             try:
-                await self.channel.delete()
+                create_ticket(str(self.opener.id), message_link)
+            except Exception as e:
+                try:
+                    await interaction.edit_original_message(
+                        content=self.texts["db_error"], view=None
+                    )
+                except disnake.NotFound:
+                    pass
+                return
+        try:
+            await interaction.channel.delete()
+        except disnake.NotFound:
+            pass
+        except Exception as e:
+            try:
+                await interaction.edit_original_message(
+                    content=self.texts["delete_error"], view=None
+                )
             except disnake.NotFound:
                 pass
-            except Exception as e:
-                log.error(f"Channel deletion error: {e}")
-                await modal_interaction.followup.send(
-                    self.texts["delete_error"],
-                    ephemeral=True
-                )
+            return
 
-        except Exception as e:
-            log.error(f"Critical error in modal window: {e}")
-            await modal_interaction.followup.send(
-                self.texts["critical_error"],
-                ephemeral=True
-            )
+        try:
+            await interaction.edit_original_message(content=self.texts["success"], view=None)
+        except disnake.NotFound:
+            pass
+        self.stop()
+
+    @ui.button(label="Cancel", style=disnake.ButtonStyle.secondary, custom_id="cancel_close")
+    async def cancel_button(self, button: ui.Button, interaction: disnake.MessageInteraction):
+        await interaction.response.defer(ephemeral=True)
+        cancel_text = self.texts.get("cancelled", "Ticket closing cancelled")
+        try:
+            await interaction.edit_original_message(content=cancel_text, view=None)
+        except disnake.NotFound:
+            pass
+        self.stop()
 
     async def _generate_transcript(self):
         transcript = []
@@ -118,14 +107,25 @@ class ConfirmCloseModal(ui.Modal):
         embed.add_field(name=texts["opened_by"], value=self.opener.mention, inline=True)
         embed.add_field(name=texts["closed_by"], value=closed_by.mention, inline=True)
 
-        for field_name, field_value in self.ticket_data['content'].items():
-            embed.add_field(
-                name=field_name,
-                value=field_value[:1000] + "..." if len(field_value) > 1000 else field_value,
-                inline=False
-            )
-        return embed
+        if self.ticket_data['platform'] == "mindustry":
+            if self.ticket_data['type'] == "complaint":
+                complainant_game = self.ticket_data['content'].get('game_nick', "Не указано")
+                offender_game = self.ticket_data['content'].get('offender_game', "Не указано")
+                embed.add_field(name="Game Username подающего жалобу", value=complainant_game, inline=True)
+                embed.add_field(name="Game Username нарушителя", value=offender_game, inline=True)
+            elif self.ticket_data['type'] == "appeal":
+                appeal_game = self.ticket_data['content'].get('username', "Не указано")
+                embed.add_field(name="Game Username подающего аппеляцию", value=appeal_game, inline=True)
+            elif self.ticket_data['type'] == "staff":
+                staff_game = self.ticket_data['content'].get('username', "Не указано")
+                embed.add_field(name="Game Username при заявке на стафф", value=staff_game, inline=True)
 
+        for field_name, field_value in self.ticket_data['content'].items():
+            if field_name in ["game_nick", "username", "offender_game"]:
+                continue
+            display_value = field_value if len(field_value) <= 1000 else field_value[:1000] + "..."
+            embed.add_field(name=field_name, value=display_value, inline=False)
+        return embed
     async def _send_log_and_get_link(self, interaction, embed, transcript_text):
         try:
             channels_config = config.channels

@@ -92,8 +92,7 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
             },
             lang=lang
         )
-        await interaction.response.send_modal(modal)
-
+        await interaction.response.send_message(content=modal.confirmation_text, view=modal, ephemeral=True)
     guild = bot.get_guild(guild_id)
     if not guild:
         log.error(f"Сервер с ID {guild_id} не найден")
