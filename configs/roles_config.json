@@ -4,10 +4,15 @@
     "english": 1381427893271527424,
     "bilingual": 1381646423056977991
   },
+  "moderation_roles": {
+    "mute": 1400563406099976312,
+    "ban": 1402729159939325962,
+    "voice-mute": 1402734374436208811
+  },
   "staff_roles": {
     "Discord Developer": {
       "id": 1381434949919445163,
-      "permissions": "push-🔄│updates, test, Mindustry-Complaint, push-📜│rules, mute, kick, ban, unban"
+      "permissions": "push-🔄│updates, test, Mindustry-Complaint, push-📜│rules, discord-mute-ctrl, discord-kick"
     },
     "Discord Trial Developer": {
       "id": 1384646199948087508,
@@ -70,4 +75,4 @@
       "permissions": null
     }
   }
-}
+},

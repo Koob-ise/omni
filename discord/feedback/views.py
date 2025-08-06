@@ -143,23 +143,44 @@ class FeedbackView(ui.View):
         texts_utils = TEXTS[self.lang]["ticket_utils"]
 
         class FeedbackModal(disnake.ui.Modal):
-            def __init__(self, is_russian):
+            def __init__(self, is_russian, ticket_type, platform):
                 super().__init__(
                     title=modal_config["title"],
                     custom_id=f"modal_{selected_type}_{selected_platform}",
                     components=inputs
                 )
                 self.is_russian = is_russian
+                self.ticket_type = ticket_type
+                self.platform = platform
 
             async def callback(self, modal_interaction: disnake.ModalInteraction):
                 await modal_interaction.response.defer(ephemeral=True)
                 try:
+                    lang = "ru" if self.is_russian else "en"
+                    texts_utils = TEXTS[lang]["ticket_utils"]
+
+                    if self.ticket_type == "complaint" and self.platform == "discord":
+                        offender_tag = modal_interaction.text_values.get("offender")
+
+                        if not offender_tag or offender_tag.strip() == "":
+                            error_msg = texts_utils["errors"]["missing_tag"]
+                            await modal_interaction.followup.send(error_msg, ephemeral=True)
+                            return
+
+                        guild = modal_interaction.guild
+                        offender = guild.get_member_named(offender_tag.strip())
+
+                        if not offender:
+                            error_msg = texts_utils["errors"]["member_not_found"].format(tag=offender_tag)
+                            await modal_interaction.followup.send(error_msg, ephemeral=True)
+                            return
+
                     channel = await create_ticket_channel(
                         modal_interaction,
                         title_for_ticket,
                         selected_platform,
                         modal_interaction.text_values,
-                        lang="ru" if self.is_russian else "en"
+                        lang=lang
                     )
                     success_msg = texts_utils["success"].format(channel=channel.mention)
                     await modal_interaction.followup.send(success_msg, ephemeral=True)
@@ -168,7 +189,12 @@ class FeedbackView(ui.View):
                     error_msg = texts_utils["error"]
                     await modal_interaction.followup.send(error_msg, ephemeral=True)
 
-        await interaction.response.send_modal(FeedbackModal(is_russian=self.is_russian))
+        modal = FeedbackModal(
+            is_russian=self.is_russian,
+            ticket_type=selected_type,
+            platform=selected_platform
+        )
+        await interaction.response.send_modal(modal)
 
         try:
             channel = interaction.guild.get_channel(self.channel_id)

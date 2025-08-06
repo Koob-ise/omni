@@ -38,12 +38,12 @@ TICKET_COLORS = {
 
 TYPE_OPTIONS = [
     {"label": "Complaint", "value": "complaint", "emoji": "⚠️"},
-    {"label": "Appeal", "value": "appeal", "emoji": "📩"},
-    {"label": "Staff Application", "value": "staff", "emoji": "🛠️"}
+    {"label": "Appeal", "value": "appeal", "emoji": "📝"},
+    {"label": "Staff Application", "value": "staff", "emoji": "🛡️"}
 ]
 
 PLATFORM_OPTIONS = [
-    {"label": "Mindustry", "value": "mindustry", "emoji": "🧱"},
+    {"label": "Mindustry", "value": "mindustry", "emoji": "🎮"},
     {"label": "Discord", "value": "discord", "emoji": "💬"}
 ]
 
@@ -51,8 +51,9 @@ MODAL_CONFIGS = {
     "complaint": {
         "title": "Complaint",
         "inputs": [
-            {"label": "Offender's username", "custom_id": "offender", "style": TextInputStyle.short, "max_length": 200},
+            {"label": "Offender's tag", "custom_id": "offender", "style": TextInputStyle.short, "max_length": 200},
             {"label": "Rule violation", "custom_id": "rule", "style": TextInputStyle.short, "max_length": 5},
+            {"label": "Date & time of violation (GMT/Timezone)", "custom_id": "violation_datetime", "style": TextInputStyle.short, "max_length": 50},
             {"label": "Violation description", "custom_id": "desc", "style": TextInputStyle.paragraph, "max_length": 4000},
             {"label": "Your game username and server", "custom_id": "username", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 300}
         ]
@@ -61,7 +62,7 @@ MODAL_CONFIGS = {
         "title": "Appeal",
         "inputs": [
             {"label": "Punishment reason", "custom_id": "reason", "style": TextInputStyle.short, "max_length": 500},
-            {"label": "Punishment date", "custom_id": "date", "style": TextInputStyle.short, "max_length": 20},
+            {"label": "Punishment date & time (GMT/Timezone)", "custom_id": "punishment_datetime", "style": TextInputStyle.short, "max_length": 50},
             {"label": "Description", "custom_id": "desc", "style": TextInputStyle.paragraph, "max_length": 4000},
             {"label": "Your game username and server", "custom_id": "username", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 300}
         ]
@@ -82,8 +83,9 @@ MODAL_CONFIGS_RU = {
     "complaint": {
         "title": "Жалоба",
         "inputs": [
-            {"label": "Ник нарушителя", "custom_id": "offender", "style": TextInputStyle.short, "max_length": 200},
+            {"label": "Тег нарушителя", "custom_id": "offender", "style": TextInputStyle.short, "max_length": 200},
             {"label": "Пункт правила", "custom_id": "rule", "style": TextInputStyle.short, "max_length": 5},
+            {"label": "Дата и время нарушения (GMT/Часовой пояс)", "custom_id": "violation_datetime", "style": TextInputStyle.short, "max_length": 50},
             {"label": "Описание нарушения", "custom_id": "desc", "style": TextInputStyle.paragraph, "max_length": 4000},
             {"label": "Ваш игровой ник и сервер", "custom_id": "username", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 300}
         ]
@@ -92,7 +94,7 @@ MODAL_CONFIGS_RU = {
         "title": "Апелляция",
         "inputs": [
             {"label": "Причина наказания", "custom_id": "reason", "style": TextInputStyle.short, "max_length": 500},
-            {"label": "Дата наказания", "custom_id": "date", "style": TextInputStyle.short, "max_length": 20},
+            {"label": "Дата и время наказания (GMT/Часовой пояс)", "custom_id": "punishment_datetime", "style": TextInputStyle.short, "max_length": 50},
             {"label": "Описание", "custom_id": "desc", "style": TextInputStyle.paragraph, "max_length": 4000},
             {"label": "Ваш игровой ник и сервер", "custom_id": "username", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 300}
         ]
@@ -101,7 +103,7 @@ MODAL_CONFIGS_RU = {
         "title": "Заявка на стафф",
         "inputs": [
             {"label": "Желаемая должность", "custom_id": "position", "style": TextInputStyle.short, "max_length": 100},
-            {"label": "Почему вы хотите на должность", "custom_id": "why", "style": TextInputStyle.paragraph, "max_length": 500},
+            {"label": "Почему вы хотите эту должность", "custom_id": "why", "style": TextInputStyle.paragraph, "max_length": 500},
             {"label": "Возраст", "custom_id": "age", "style": TextInputStyle.short, "max_length": 2},
             {"label": "О себе", "custom_id": "about", "style": TextInputStyle.paragraph, "max_length": 4000},
             {"label": "Ваш игровой ник", "custom_id": "username", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 200}
@@ -111,12 +113,12 @@ MODAL_CONFIGS_RU = {
 
 TYPE_OPTIONS_RU = [
     {"label": "Жалоба", "value": "complaint", "emoji": "⚠️"},
-    {"label": "Апелляция", "value": "appeal", "emoji": "📩"},
-    {"label": "Заявка на стафф", "value": "staff", "emoji": "🛠️"}
+    {"label": "Апелляция", "value": "appeal", "emoji": "📝"},
+    {"label": "Заявка на стафф", "value": "staff", "emoji": "🛡️"}
 ]
 
 PLATFORM_OPTIONS_RU = [
-    {"label": "Mindustry", "value": "mindustry", "emoji": "🧱"},
+    {"label": "Mindustry", "value": "mindustry", "emoji": "🎮"},
     {"label": "Discord", "value": "discord", "emoji": "💬"}
 ]
 
@@ -127,7 +129,7 @@ TEXTS = {
                 "title": "Confirm Closure",
                 "label": "Confirmation",
                 "placeholder": "Type 'yes' to confirm",
-                "hint": "❗ Please type 'yes' to confirm closure",
+                "hint": "⚠️ Please type 'yes' to confirm closure",
                 "success": "✅ Ticket closed successfully",
                 "error": "❌ Invalid confirmation",
                 "db_error": "⚠️ Ticket save error",
@@ -164,7 +166,11 @@ TEXTS = {
             "ticket_title": "{title} by {user}",
             "platform_field": "Platform",
             "success": "✅ Channel created: {channel}",
-            "error": "❌ Error creating ticket"
+            "error": "❌ Error creating ticket",
+            "errors": {
+                "missing_tag": "❌ Please provide the offender's Discord tag!",
+                "member_not_found": "❌ User `{tag}` not found on the server! Check the tag format"
+            }
         },
         "views": {
             "close_ticket": "Close Ticket",
@@ -172,8 +178,8 @@ TEXTS = {
             "platform_placeholder": "Select platform",
             "submit_button": "Fill Form",
             "errors": {
-                "select_both": "❗ Please select both type and platform first.",
-                "expired": "❗ Your selection has expired, please start over."
+                "select_both": "⚠️ Please select both type and platform first.",
+                "expired": "⚠️ Your selection has expired, please start over."
             }
         }
     },
@@ -183,7 +189,7 @@ TEXTS = {
                 "title": "Подтверждение закрытия",
                 "label": "Подтверждение",
                 "placeholder": "Введите 'да' для подтверждения",
-                "hint": "❗ Введите 'да' для подтверждения",
+                "hint": "⚠️ Введите 'да' для подтверждения",
                 "success": "✅ Тикет успешно закрыт",
                 "error": "❌ Неверное подтверждение",
                 "db_error": "⚠️ Ошибка сохранения тикета",
@@ -220,7 +226,11 @@ TEXTS = {
             "ticket_title": "{title} от {user}",
             "platform_field": "Платформа",
             "success": "✅ Канал создан: {channel}",
-            "error": "❌ Ошибка при создании тикета"
+            "error": "❌ Ошибка при создании тикета",
+            "errors": {
+                "missing_tag": "❌ Укажите тег нарушителя в Discord!",
+                "member_not_found": "❌ Пользователь `{tag}` не найден на сервере! Проверьте формат"
+            }
         },
         "views": {
             "close_ticket": "Закрыть тикет",
@@ -228,8 +238,8 @@ TEXTS = {
             "platform_placeholder": "Выберите платформу",
             "submit_button": "Заполнить форму",
             "errors": {
-                "select_both": "❗ Сначала выберите тип и платформу.",
-                "expired": "❗ Ваш выбор устарел, начните заново."
+                "select_both": "⚠️ Сначала выберите тип и платформу.",
+                "expired": "⚠️ Ваш выбор устарел, начните заново."
             }
         }
     }

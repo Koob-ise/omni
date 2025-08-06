@@ -95,6 +95,13 @@
         "name": "📌 Tickets Bot",
         "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128"
       }
+    },
+    "📌│punishments": {
+      "id": 1399782566860554342,
+      "webhook": {
+        "name": "📌 Punishments Bot",
+        "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128"
+      }
     }
   },
   "voice_channels": {
