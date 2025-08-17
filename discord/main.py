@@ -6,12 +6,11 @@ import json
 from read_first import setup_read_first
 from utils.push import setup_slash_commands_push
 from test import test
-from utils.deleter import setup_slash_commands_deleter
+from utils.deleter.setup import setup_deletion_commands
 from feedback.setup import setup_feedback_channel
 from webhook_manager import setup_webhooks
 from utils.server_stats import setup_server_stats
 from utils.edit_embed import setup_edit_embed_command
-from utils.delete_embed import setup_delete_embed_command
 from database.db import init_db
 from feedback.moderation import setup_moderation_commands
 
@@ -36,9 +35,8 @@ bot = commands.Bot(
 init_db()
 
 setup_slash_commands_push(bot,channels_config, roles_config)
-setup_slash_commands_deleter(bot, roles_config)
+setup_deletion_commands(bot, roles_config,channels_config)
 setup_edit_embed_command(bot, roles_config, channels_config)
-setup_delete_embed_command(bot, roles_config, channels_config)
 setup_moderation_commands(bot, channels_config, roles_config)
 
 test(bot, roles_config)

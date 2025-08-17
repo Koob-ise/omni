@@ -1,4 +1,3 @@
-from discord import *
 from database.db import load_data
 from datetime import datetime
 import time

@@ -113,7 +113,7 @@ def setup_edit_embed_command(bot, roles_config, channels_config):
         message = data["message"]
         channel_name = data["channel_name"]
         original_embed = data["original_embed"]
-        webhook = data["webhook"]  # Get stored webhook
+        webhook = data["webhook"]
 
         title = inter.text_values["title"]
         description = inter.text_values["description"]

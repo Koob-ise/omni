@@ -12,7 +12,7 @@
   "staff_roles": {
     "Discord Developer": {
       "id": 1381434949919445163,
-      "permissions": "push-🔄│updates, test, Mindustry-Complaint, push-📜│rules, discord-mute-ctrl, discord-kick"
+      "permissions": "push-🔄│updates, test, Mindustry-Complaint, push-📜│rules, discord-mute-ctrl, discord-kick-ctrl, discord-voice-mute-ctrl, discord-blacklist-ctrl, discord-ban-ctrl, delete_thread, clear,push-general"
     },
     "Discord Trial Developer": {
       "id": 1384646199948087508,
@@ -75,4 +75,4 @@
       "permissions": null
     }
   }
-},
+}

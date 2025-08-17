@@ -17,7 +17,9 @@ ALLOWED_UPDATE_FIELDS = {
     'return_date_to_position',
     'return_date_to_staff',
     'unban_time',
-    'unmute_time'
+    'unmute_time',
+    'unvoice_mute_time',
+    'unblacklist_time'
 }
 
 
@@ -45,6 +47,8 @@ def init_db():
             return_date_to_staff TEXT,
             unban_time TEXT,
             unmute_time TEXT,
+            unvoice_mute_time TEXT,
+            unblacklist_time TEXT,
             UNIQUE(platform, user_id)
         )''')
 
@@ -52,7 +56,10 @@ def init_db():
         CREATE TABLE IF NOT EXISTS user_actions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
-            action_type TEXT NOT NULL CHECK(action_type IN ('promotion', 'demotion', 'mute', 'ban', 'warn', 'kick')),
+            action_type TEXT NOT NULL CHECK(action_type IN (
+                'promotion', 'demotion', 'mute', 'ban', 
+                'warn', 'kick', 'voice_mute', 'blacklist'
+            )),
             performed_by TEXT,
             role TEXT,
             reason TEXT,
@@ -213,14 +220,16 @@ def get_full_user_data(platform, user_id):
             'mutes': [],
             'bans': [],
             'warns': [],
-            'kicks': [],  # Добавлено для киков
+            'kicks': [],
             'return_dates': {
                 'to_position': None,
                 'to_staff': None
             },
             'active_restrictions': {
                 'unban_time': None,
-                'unmute_time': None
+                'unmute_time': None,
+                'unvoice_mute_time': None,
+                'unblacklist_time': None
             }
         },
         'actions_taken': {
@@ -229,7 +238,7 @@ def get_full_user_data(platform, user_id):
             'bans': [],
             'mutes': [],
             'warns': [],
-            'kicks': []  # Добавлено для киков
+            'kicks': []
         },
         'linked_account': None
     }
@@ -239,7 +248,7 @@ def get_full_user_data(platform, user_id):
 
         cursor.execute(
             '''SELECT created_at, return_date_to_position, return_date_to_staff, 
-                   unban_time, unmute_time 
+                   unban_time, unmute_time, unvoice_mute_time, unblacklist_time 
             FROM users 
             WHERE platform = ? AND user_id = ?''',
             (platform, user_id_str))
@@ -253,6 +262,8 @@ def get_full_user_data(platform, user_id):
         result['profile_data']['return_dates']['to_staff'] = user_data['return_date_to_staff']
         result['profile_data']['active_restrictions']['unban_time'] = user_data['unban_time']
         result['profile_data']['active_restrictions']['unmute_time'] = user_data['unmute_time']
+        result['profile_data']['active_restrictions']['unvoice_mute_time'] = user_data['unvoice_mute_time']
+        result['profile_data']['active_restrictions']['unblacklist_time'] = user_data['unblacklist_time']
 
         cursor.execute(
             '''SELECT ua.action_type, ua.performed_by, ua.role, ua.reason, 
@@ -309,7 +320,7 @@ def get_full_user_data(platform, user_id):
 
             cursor.execute(
                 '''SELECT created_at, return_date_to_position, return_date_to_staff, 
-                       unban_time, unmute_time 
+                       unban_time, unmute_time, unvoice_mute_time, unblacklist_time 
                 FROM users 
                 WHERE platform = ? AND user_id = ?''',
                 (related_platform, related_id))
@@ -323,7 +334,7 @@ def get_full_user_data(platform, user_id):
                     'mutes': [],
                     'bans': [],
                     'warns': [],
-                    'kicks': []  # Добавлено для киков
+                    'kicks': []
                 }
 
                 cursor.execute(
@@ -505,6 +516,70 @@ def add_kick(platform, main_user, kicked_by, reason):
     )
 
 
+def blacklist(platform, main_user, blacklisted_by, reason, blacklist_days):
+    gmt = pytz.timezone('GMT')
+    new_unblacklist = datetime.now(gmt) + timedelta(days=blacklist_days)
+    new_unblacklist_str = new_unblacklist.strftime('%Y-%m-%d %H:%M:%S')
+
+    current_unblacklist = None
+    with db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT unblacklist_time FROM users WHERE platform = ? AND user_id = ?",
+            (platform, str(main_user)))
+        row = cursor.fetchone()
+        if row and row['unblacklist_time']:
+            naive = datetime.strptime(row['unblacklist_time'], '%Y-%m-%d %H:%M:%S')
+            current_unblacklist = gmt.localize(naive)
+
+    if current_unblacklist and current_unblacklist > new_unblacklist:
+        unblacklist_to_set = current_unblacklist.strftime('%Y-%m-%d %H:%M:%S')
+    else:
+        unblacklist_to_set = new_unblacklist_str
+
+    _add_action(
+        action_type="blacklist",
+        platform=platform,
+        main_user=main_user,
+        performed_by=blacklisted_by,
+        reason=reason,
+        duration_days=blacklist_days
+    )
+    update_user_data(platform, main_user, {"unblacklist_time": unblacklist_to_set})
+
+
+def add_voice_mute(platform, main_user, muted_by, reason, mute_days):
+    gmt = pytz.timezone('GMT')
+    new_unvoice_mute = datetime.now(gmt) + timedelta(days=mute_days)
+    new_unvoice_mute_str = new_unvoice_mute.strftime('%Y-%m-%d %H:%M:%S')
+
+    current_unvoice_mute = None
+    with db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT unvoice_mute_time FROM users WHERE platform = ? AND user_id = ?",
+            (platform, str(main_user)))
+        row = cursor.fetchone()
+        if row and row['unvoice_mute_time']:
+            naive = datetime.strptime(row['unvoice_mute_time'], '%Y-%m-%d %H:%M:%S')
+            current_unvoice_mute = gmt.localize(naive)
+
+    if current_unvoice_mute and current_unvoice_mute > new_unvoice_mute:
+        unvoice_mute_to_set = current_unvoice_mute.strftime('%Y-%m-%d %H:%M:%S')
+    else:
+        unvoice_mute_to_set = new_unvoice_mute_str
+
+    _add_action(
+        action_type="voice_mute",
+        platform=platform,
+        main_user=main_user,
+        performed_by=muted_by,
+        reason=reason,
+        duration_days=mute_days
+    )
+    update_user_data(platform, main_user, {"unvoice_mute_time": unvoice_mute_to_set})
+
+
 if __name__ == "__main__":
     init_db()
 
@@ -536,7 +611,10 @@ if __name__ == "__main__":
 
     add_mute("mindustry", "player789", "admin002", "Spamming", 3)
     add_ban("discord", "user005", "admin003", "Cheating", 7)
-    add_kick("discord", "user006", "admin004", "Нарушение правил чата")  # Пример использования add_kick
+    add_kick("discord", "user006", "admin004", "Нарушение правил чата")
+
+    blacklist("discord", "user007", "admin005", "Спам в личных сообщениях", 30)
+    add_voice_mute("discord", "user008", "admin006", "Оскорбления в голосовом чате", 7)
 
     user_profile = get_full_user_data("discord", "admin001")
     print("\nAdmin001 Profile:")
