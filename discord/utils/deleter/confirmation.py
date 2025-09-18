@@ -3,16 +3,23 @@ from disnake.ui import Button, View
 
 deletion_data = {}
 
-async def create_confirmation_view(inter, content, data_type, **data):
+async def create_confirmation_view(inter: disnake.ApplicationCommandInteraction, content: str, action_type: str, **data):
     await inter.response.defer(ephemeral=True)
-    deletion_data[inter.id] = {
-        "type": data_type,
+
+    unique_id = inter.id
+    deletion_data[unique_id] = {
+        "type": action_type,
         "author_id": inter.author.id,
         **data
     }
+
     view = View(timeout=60)
-    confirm_button = Button(style=disnake.ButtonStyle.danger, label="Confirm", custom_id=f"confirm_{inter.id}")
-    cancel_button = Button(style=disnake.ButtonStyle.secondary, label="Cancel", custom_id=f"cancel_{inter.id}")
-    view.add_item(confirm_button)
-    view.add_item(cancel_button)
-    await inter.followup.send(content, ephemeral=True, view=view)
+    view.add_item(Button(style=disnake.ButtonStyle.danger, label="Confirm", custom_id=f"confirm_{unique_id}"))
+    view.add_item(Button(style=disnake.ButtonStyle.secondary, label="Cancel", custom_id=f"cancel_{unique_id}"))
+
+    async def on_timeout():
+        if unique_id in deletion_data:
+            del deletion_data[unique_id]
+
+    view.on_timeout = on_timeout
+    await inter.followup.send(content, view=view, ephemeral=True)

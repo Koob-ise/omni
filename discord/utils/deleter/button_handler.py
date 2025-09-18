@@ -1,5 +1,4 @@
 import disnake
-import asyncio
 from datetime import timedelta, datetime
 from .helpers import can_be_deleted
 from .confirmation import deletion_data
@@ -9,226 +8,153 @@ class ButtonHandler:
     def __init__(self, bot, permission_checker):
         self.bot = bot
         self.permission_checker = permission_checker
+        bot.listen("on_button_click")(self.on_button_click)
 
-        @bot.listen("on_button_click")
-        async def on_confirmation_button_click(inter: disnake.MessageInteraction):
-            custom_id = inter.component.custom_id
-            if not custom_id.startswith(("confirm_", "cancel_")):
-                return
+    async def _handle_delete_single(self, inter, data):
+        message = data["message"]
+        try:
+            await message.delete()
+            await inter.edit_original_response(content="✅ Message successfully deleted!", view=None)
+        except disnake.NotFound:
+            await inter.edit_original_response(content="✅ Message was already deleted.", view=None)
+
+    async def _handle_delete_embed(self, inter, data):
+        message = data["message"]
+        try:
+            await message.edit(embeds=[])
+            await inter.edit_original_response(content="✅ Embed successfully removed!", view=None)
+        except disnake.NotFound:
+            await inter.edit_original_response(content="✅ Message was already deleted.", view=None)
+
+    async def _handle_delete_thread(self, inter, data):
+        thread = data["thread"]
+        if not (self.permission_checker.has_thread_delete_permission(
+                inter.author) or thread.owner_id == inter.author.id):
+            await inter.edit_original_response(content="❌ You no longer have permission to delete this thread.",
+                                               view=None)
+            return
+
+        if creation_message := data.get("creation_message"):
             try:
-                action, inter_id_str = custom_id.split("_", 1)
-                original_inter_id = int(inter_id_str)
-            except ValueError:
-                return
-            data = deletion_data.get(original_inter_id)
-            if not data:
-                return
-            if inter.author.id != data["author_id"]:
-                try:
-                    await inter.response.send_message("Only the original user can confirm this action.", ephemeral=True)
-                except (disnake.errors.NotFound, disnake.errors.InteractionResponded):
-                    pass
-                return
+                await creation_message.delete()
+            except disnake.NotFound:
+                pass
+        elif hasattr(self.bot, 'thread_manager'):
+            await self.bot.thread_manager.delete_creation_message(thread)
+
+        try:
+            await thread.delete()
+            await inter.edit_original_response(content="✅ Thread successfully deleted!", view=None)
+        except disnake.NotFound:
+            await inter.edit_original_response(content="✅ Thread was already deleted.", view=None)
+
+    async def _handle_clear(self, inter, data):
+        if not self.permission_checker.has_clear_permission(inter.author):
+            await inter.edit_original_response(content="❌ You no longer have permission to clear messages.", view=None)
+            return
+
+        channel = data["channel"]
+        member = data.get("member")
+        check = lambda msg: (not member or msg.author == member) and can_be_deleted(msg)
+        deleted_count = 0
+
+        if data["input_type"] == "time":
+            start_time = datetime.utcnow() - timedelta(seconds=data["time_seconds"])
+            deleted_messages = await channel.purge(after=start_time, check=check, limit=500)
+            deleted_count = len(deleted_messages)
+        else:
+            amount_to_delete = data["amount"]
+
+            if not member:
+                deleted_messages = await channel.purge(limit=amount_to_delete, check=check)
+                deleted_count = len(deleted_messages)
+            else:
+                messages_to_delete = []
+                async for message in channel.history(limit=2000):
+                    if len(messages_to_delete) >= amount_to_delete:
+                        break
+                    if check(message):
+                        messages_to_delete.append(message)
+
+                if messages_to_delete:
+                    try:
+                        await channel.delete_messages(messages_to_delete)
+                        deleted_count = len(messages_to_delete)
+                    except disnake.HTTPException as e:
+                        await inter.edit_original_response(content=f"❌ An error occurred during deletion: {e}",
+                                                           view=None)
+                        return
+
+        await inter.edit_original_response(content=f"✅ Successfully deleted {deleted_count} messages!", view=None)
+
+    async def _handle_clear_after(self, inter, data):
+        if not self.permission_checker.has_clear_permission(inter.author):
+            await inter.edit_original_response(content="❌ You no longer have permission to clear messages.", view=None)
+            return
+
+        channel = data["channel"]
+        target_message = data["target_message"]
+        deleted_count = 0
+
+        deleted_messages = await channel.purge(after=target_message, check=can_be_deleted)
+        deleted_count = len(deleted_messages)
+        try:
+            await target_message.delete()
+            deleted_count += 1
+        except disnake.NotFound:
+            pass
+
+        await inter.edit_original_response(content=f"✅ Successfully deleted {deleted_count} messages!", view=None)
+
+    async def on_button_click(self, inter: disnake.MessageInteraction):
+        custom_id = inter.component.custom_id
+
+        if custom_id.startswith("delete_user_thread_"):
+            if hasattr(self.bot, 'thread_manager'):
+                await self.bot.thread_manager.handle_thread_button_click(inter)
+            return
+
+        if not custom_id.startswith(("confirm_", "cancel_")):
+            return
+
+        try:
+            action, inter_id_str = custom_id.split("_", 1)
+            original_inter_id = int(inter_id_str)
+        except ValueError:
+            return
+
+        data = deletion_data.get(original_inter_id)
+        if not data or inter.author.id != data.get("author_id"):
+            return
+
+        original_inter_id = int(inter_id_str)
+
+        try:
             if action == "cancel":
-                try:
-                    await inter.response.edit_message(content="❌ Action cancelled.", view=None)
-                except disnake.errors.NotFound:
-                    pass
-                if original_inter_id in deletion_data:
-                    del deletion_data[original_inter_id]
+                await inter.response.edit_message(content="❌ Action cancelled.", view=None)
                 return
+
+            await inter.response.defer()
+
+            action_handlers = {
+                "delete_single": self._handle_delete_single,
+                "delete_embed": self._handle_delete_embed,
+                "delete_thread": self._handle_delete_thread,
+                "clear": self._handle_clear,
+                "clear_after": self._handle_clear_after,
+            }
+
+            handler = action_handlers.get(data.get("type"))
+            if handler:
+                await handler(inter, data)
+            else:
+                await inter.edit_original_response(content="❌ Unknown action type.", view=None)
+
+        except disnake.HTTPException as e:
             try:
-                if data["type"] == "delete_single":
-                    if not self.permission_checker.has_single_delete_permission(inter.author,
-                                                                                data["message"].channel.id):
-                        try:
-                            await inter.response.edit_message(
-                                content="❌ You no longer have permission to delete messages in this channel.",
-                                view=None)
-                        except disnake.errors.NotFound:
-                            pass
-                        return
-                    try:
-                        await data["message"].delete()
-                    except disnake.errors.NotFound:
-                        pass
-                    try:
-                        await inter.response.edit_message(content="✅ Message deleted successfully!", view=None)
-                    except disnake.errors.NotFound:
-                        pass
-                elif data["type"] == "delete_embed":
-                    if not self.permission_checker.has_delete_permission(inter.author, data["channel_name"]):
-                        try:
-                            await inter.response.edit_message(
-                                content="❌ You no longer have permission to delete embeds in this channel.", view=None)
-                        except disnake.errors.NotFound:
-                            pass
-                        return
-                    try:
-                        await data["message"].delete()
-                    except disnake.errors.NotFound:
-                        pass
-                    try:
-                        await inter.response.edit_message(content="✅ Embed message deleted successfully!", view=None)
-                    except disnake.errors.NotFound:
-                        pass
-                elif data["type"] == "delete_thread":
-                    if not self.permission_checker.has_thread_delete_permission(inter.author):
-                        try:
-                            await inter.response.edit_message(
-                                content="❌ You no longer have permission to delete threads.", view=None)
-                        except disnake.errors.NotFound:
-                            pass
-                        return
-                    thread = data["thread"]
-                    try:
-                        await thread.delete()
-                    except disnake.errors.NotFound:
-                        pass
-                    try:
-                        await inter.response.edit_message(content="✅ Thread deleted successfully!", view=None)
-                    except disnake.errors.NotFound:
-                        pass
-                elif data["type"] == "delete_forum_post":
-                    if not self.permission_checker.has_forum_delete_permission(inter.author):
-                        try:
-                            await inter.response.edit_message(
-                                content="❌ You no longer have permission to delete forum posts.", view=None)
-                        except disnake.errors.NotFound:
-                            pass
-                        return
-                    forum_post = data["forum_post"]
-                    try:
-                        await forum_post.delete()
-                    except disnake.errors.NotFound:
-                        pass
-                    try:
-                        await inter.response.edit_message(content="✅ Forum post deleted successfully!", view=None)
-                    except disnake.errors.NotFound:
-                        pass
-                elif data["type"] == "clear":
-                    if not self.permission_checker.has_clear_permission(inter.author):
-                        try:
-                            await inter.response.edit_message(
-                                content="❌ You no longer have permission to use this command.", view=None)
-                        except disnake.errors.NotFound:
-                            pass
-                        return
-                    member = data.get("member")
-                    channel = data["channel"]
-                    if member:
-                        def check_func(m):
-                            return m.author == member and can_be_deleted(m)
-                    else:
-                        check_func = can_be_deleted
-                    if data.get("target_message"):
-                        target_msg = data["target_message"]
-                        try:
-                            await target_msg.delete()
-                        except disnake.errors.NotFound:
-                            pass
-                        deleted_after = []
-                        try:
-                            async for msg in channel.history(after=target_msg, limit=data["amount"]):
-                                if check_func(msg):
-                                    try:
-                                        await msg.delete()
-                                        deleted_after.append(msg)
-                                        await asyncio.sleep(0.25)
-                                    except disnake.errors.NotFound:
-                                        continue
-                        except disnake.errors.NotFound:
-                            pass
-                        total_deleted = len(deleted_after) + 1
-                        try:
-                            await inter.response.edit_message(
-                                content=f"✅ Deleted {total_deleted} messages (including the target).", view=None)
-                        except disnake.errors.NotFound:
-                            pass
-                    elif data["input_type"] == "time":
-                        start_time = datetime.utcnow() - timedelta(seconds=data["time_seconds"])
-                        deleted = []
-                        try:
-                            await inter.response.edit_message(content=f"⏳ Deleting messages from the last period...",
-                                                              view=None)
-                        except disnake.errors.NotFound:
-                            pass
-                        try:
-                            async for msg in channel.history(after=start_time):
-                                if check_func(msg):
-                                    try:
-                                        await msg.delete()
-                                        deleted.append(msg)
-                                        await asyncio.sleep(0.25)
-                                    except disnake.errors.NotFound:
-                                        continue
-                        except disnake.errors.NotFound:
-                            pass
-                        try:
-                            await inter.edit_original_message(
-                                content=f"✅ Deleted {len(deleted)} messages from the last period.")
-                        except disnake.errors.NotFound:
-                            pass
-                    else:
-                        deleted = []
-                        count_needed = data["amount"]
-                        try:
-                            async for msg in channel.history(limit=1000):
-                                if len(deleted) >= count_needed:
-                                    break
-                                if check_func(msg):
-                                    try:
-                                        await msg.delete()
-                                        deleted.append(msg)
-                                        await asyncio.sleep(0.25)
-                                    except disnake.errors.NotFound:
-                                        continue
-                        except disnake.errors.NotFound:
-                            pass
-                        try:
-                            await inter.response.edit_message(content=f"✅ Deleted {len(deleted)} messages.", view=None)
-                        except disnake.errors.NotFound:
-                            pass
-                elif data["type"] == "clear_after":
-                    if not self.permission_checker.has_clear_permission(inter.author):
-                        try:
-                            await inter.response.edit_message(
-                                content="❌ You no longer have permission to use this command.", view=None)
-                        except disnake.errors.NotFound:
-                            pass
-                        return
-                    target_msg = data["target_message"]
-                    channel = data["channel"]
-                    try:
-                        await target_msg.delete()
-                    except disnake.errors.NotFound:
-                        pass
-                    deleted_after = []
-                    try:
-                        async for msg in channel.history(after=target_msg):
-                            if can_be_deleted(msg):
-                                try:
-                                    await msg.delete()
-                                    deleted_after.append(msg)
-                                    await asyncio.sleep(0.25)
-                                except disnake.errors.NotFound:
-                                    continue
-                    except disnake.errors.NotFound:
-                        pass
-                    total_deleted = len(deleted_after) + 1
-                    try:
-                        await inter.response.edit_message(
-                            content=f"✅ Deleted {total_deleted} messages (including the target).", view=None)
-                    except disnake.errors.NotFound:
-                        pass
-            except Exception as e:
-                try:
-                    await inter.response.edit_message(content=f"❌ Error: {str(e)}", view=None)
-                except (disnake.errors.NotFound, disnake.errors.InteractionResponded):
-                    try:
-                        await inter.followup.send(f"❌ Error during deletion: {str(e)}", ephemeral=True)
-                    except:
-                        pass
-            finally:
-                if original_inter_id in deletion_data:
-                    del deletion_data[original_inter_id]
+                await inter.edit_original_response(content=f"❌ An error occurred: {e}", view=None)
+            except disnake.HTTPException:
+                pass
+        finally:
+            if original_inter_id in deletion_data:
+                del deletion_data[original_inter_id]

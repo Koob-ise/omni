@@ -6,6 +6,7 @@ import logging
 import re
 import asyncio
 from datetime import datetime, timedelta
+from discord.utils.deleter.helpers import can_be_deleted
 
 log = logging.getLogger(__name__)
 
@@ -110,7 +111,31 @@ def has_permission(member, action, roles_config):
     return False
 
 
+async def clear_user_messages(channel, member, days):
+    """Deletes messages from a specific member in a given channel within a timeframe."""
+    if days <= 0:
+        return 0
+    deleted_count = 0
+    try:
+        start_time = datetime.utcnow() - timedelta(days=days)
+        check = lambda msg: msg.author.id == member.id and can_be_deleted(msg)
+
+        deleted_messages = await channel.purge(limit=None, after=start_time, check=check)
+        deleted_count = len(deleted_messages)
+        log.info(f"Purged {deleted_count} messages from {member.display_name} in channel {channel.name}.")
+    except Exception as e:
+        log.error(f"Could not purge messages for {member.display_name}: {e}")
+    return deleted_count
+
+
 async def apply_punishment(inter, offender, action, duration_delta, reason, delete_days, moderation_roles):
+    deleted_count = 0
+    # Apply message deletion for ANY action if delete_days is specified.
+    if delete_days > 0:
+        deleted_count = await clear_user_messages(inter.channel, offender, delete_days)
+        log.info(
+            f"Moderator {inter.author.display_name} requested deletion of {delete_days} days of messages for {offender.display_name}. Deleted {deleted_count} messages in ticket.")
+
     try:
         role_id = None
         if action == "mute":
@@ -125,31 +150,25 @@ async def apply_punishment(inter, offender, action, duration_delta, reason, dele
         if action == "ban":
             if role:
                 await offender.add_roles(role, reason=reason)
-
             ban_days = DEFAULT_BAN_DURATION
             if duration_delta:
                 ban_days = duration_delta.days
-
             add_ban("discord", offender.id, inter.author.id, reason, ban_days)
 
         elif action == "mute":
             if role:
                 await offender.add_roles(role, reason=reason)
-
             mute_days = DEFAULT_MUTE_DURATION
             if duration_delta:
                 mute_days = duration_delta.days
-
             add_mute("discord", offender.id, inter.author.id, reason, mute_days)
 
         elif action == "voice-mute":
             if role:
                 await offender.add_roles(role, reason=reason)
-
             voice_mute_days = DEFAULT_VOICE_MUTE_DURATION
             if duration_delta:
                 voice_mute_days = duration_delta.days
-
             add_voice_mute("discord", offender.id, inter.author.id, reason, voice_mute_days)
 
         elif action == "kick":
@@ -160,19 +179,17 @@ async def apply_punishment(inter, offender, action, duration_delta, reason, dele
             await inter.guild.ban(
                 offender,
                 reason=reason,
-                delete_message_days=delete_days
+                delete_message_days=0
             )
-
             blacklist_days = DEFAULT_BLACKLIST_DURATION
             if duration_delta:
                 blacklist_days = duration_delta.days
-
             blacklist("discord", offender.id, inter.author.id, reason, blacklist_days)
 
-        return True
+        return True, deleted_count
     except Exception as e:
         log.error(f"Error applying punishment: {e}")
-        return False
+        return False, deleted_count
 
 
 def setup_moderation_commands(bot, channels_config, roles_config):
@@ -190,8 +207,8 @@ def setup_moderation_commands(bot, channels_config, roles_config):
             delete_days: int = commands.Param(
                 0,
                 ge=0,
-                le=7,
-                description="Delete messages from last N days (blacklist only)",
+                le=30,
+                description="Delete user's messages from last N days in this channel (optional).",
             ),
             reason: str = commands.Param("No comment", description="Punishment reason")
     ):
@@ -208,11 +225,7 @@ def setup_moderation_commands(bot, channels_config, roles_config):
                 ephemeral=True
             )
 
-        if delete_days > 0 and action != "blacklist":
-            return await inter.response.send_message(
-                f"❌ Delete days only allowed for kick and blacklist!",
-                ephemeral=True
-            )
+        # The check limiting delete_days to specific actions has been removed.
 
         offender_tag = await find_offender_in_ticket(inter.channel)
         if not offender_tag:
@@ -294,10 +307,11 @@ def setup_moderation_commands(bot, channels_config, roles_config):
 
         embed.add_field(name="⏱ Duration", value=duration_text, inline=True)
 
-        if action in ["kick", "blacklist"] and delete_days > 0:
+        # Add the field if delete_days is used for ANY action.
+        if delete_days > 0:
             embed.add_field(
                 name="🗑 Delete messages",
-                value=f"Last {delete_days} days",
+                value=f"Last {delete_days} days (in this channel)",
                 inline=True
             )
 
@@ -323,7 +337,7 @@ def setup_moderation_commands(bot, channels_config, roles_config):
         try:
             await view.wait()
             if view.confirmed:
-                success = await apply_punishment(
+                success, deleted_count = await apply_punishment(
                     inter, offender, action, duration_delta, reason, delete_days, moderation_roles
                 )
 
@@ -350,15 +364,14 @@ def setup_moderation_commands(bot, channels_config, roles_config):
                                 "voice-mute": DEFAULT_VOICE_MUTE_DURATION,
                                 "blacklist": DEFAULT_BLACKLIST_DURATION
                             }.get(action, "?")
-
                             duration_info = f"Default ({default_days} days)"
 
                         log_embed.add_field(name="⏱ Duration", value=duration_info, inline=True)
 
-                        if action in ["kick", "blacklist"] and delete_days > 0:
+                        if delete_days > 0:
                             log_embed.add_field(
                                 name="🗑 Messages deleted",
-                                value=f"Last {delete_days} days",
+                                value=f"{deleted_count} from last {delete_days} days in ticket",
                                 inline=True
                             )
 
@@ -369,9 +382,13 @@ def setup_moderation_commands(bot, channels_config, roles_config):
                         except Exception as e:
                             log.error(f"Error sending log: {e}")
 
-                    await inter.edit_original_message(
-                        content=f"✅ {action.capitalize()} applied to {offender.mention}!"
-                    )
+                    response_message = f"✅ {action.capitalize()} applied to {offender.mention}!"
+                    if deleted_count > 0:
+                        response_message += f" Deleted {deleted_count} of their messages from this channel."
+                    elif delete_days > 0:
+                        response_message += " No messages from the user were found to delete in this channel."
+
+                    await inter.edit_original_message(content=response_message)
                 else:
                     await inter.edit_original_message(
                         content=f"❌ Failed to apply punishment to {offender.mention}!"

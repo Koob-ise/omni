@@ -52,3 +52,6 @@ class PermissionChecker:
                 channel_name = name
                 break
         return self.has_clear_permission(member) or (channel_name and self.has_delete_permission(member, channel_name))
+
+    def is_thread_owner(self, member, thread):
+        return thread.owner_id == member.id

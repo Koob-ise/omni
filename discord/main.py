@@ -12,7 +12,7 @@ from webhook_manager import setup_webhooks
 from utils.server_stats import setup_server_stats
 from utils.edit_embed import setup_edit_embed_command
 from database.db import init_db
-from feedback.moderation import setup_moderation_commands
+from discord.feedback.moderation import setup_moderation_commands
 
 config_path = os.path.join(os.path.dirname(__file__), "../configs/config.toml")
 channels_path = os.path.join(os.path.dirname(__file__), "../configs/channels_config.json")
