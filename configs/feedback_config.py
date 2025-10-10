@@ -126,6 +126,8 @@ TEXTS = {
     "en": {
         "modals": {
             "confirm_close": {
+                "confirmation_message": "Are you sure you want to close the ticket?",
+                "cancelled": "Ticket closing cancelled.",
                 "title": "Confirm Closure",
                 "label": "Confirmation",
                 "placeholder": "Type 'yes' to confirm",
@@ -159,7 +161,9 @@ TEXTS = {
                 "metadata": "❌ Metadata not found in ticket",
                 "invalid_metadata": "❌ Invalid ticket metadata",
                 "opener": "❌ Ticket opener not found",
-                "platform": "❌ Platform information not found"
+                "platform": "❌ Platform information not found",
+                "close_permission": "❌ You do not have permission to close this ticket.",
+                "offender_cannot_close": "❌ You are listed as the offender in this complaint and cannot close it."
             }
         },
         "ticket_utils": {
@@ -186,6 +190,8 @@ TEXTS = {
     "ru": {
         "modals": {
             "confirm_close": {
+                "confirmation_message": "Вы уверены, что хотите закрыть тикет?",
+                "cancelled": "Закрытие тикета отменено.",
                 "title": "Подтверждение закрытия",
                 "label": "Подтверждение",
                 "placeholder": "Введите 'да' для подтверждения",
@@ -219,7 +225,9 @@ TEXTS = {
                 "metadata": "❌ Метаданные не найдены в тикете",
                 "invalid_metadata": "❌ Неверные метаданные тикета",
                 "opener": "❌ Автор тикета не найден",
-                "platform": "❌ Информация о платформе не найдена"
+                "platform": "❌ Информация о платформе не найдена",
+                "close_permission": "❌ У вас нет прав для закрытия этого тикета.",
+                "offender_cannot_close": "❌ Вы указаны как нарушитель в этой жалобе и не можете ее закрыть."
             }
         },
         "ticket_utils": {

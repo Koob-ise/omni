@@ -2,9 +2,10 @@ import disnake
 from disnake import Embed
 import logging
 from configs.feedback_config import config, TEXTS, TICKET_COLORS
-import aiohttp
+import re
 
 log = logging.getLogger(__name__)
+
 
 async def create_ticket_channel(interaction, title, platform, form_data, lang="en"):
     try:
@@ -33,8 +34,37 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
         }
         log.debug(f"Initial overwrites: {overwrites.keys()}")
 
-        ticket_type = title
+        if title == "Complaint" and platform.lower() == "discord":
+            offender_tag = form_data.get("offender")
+            if offender_tag:
+                log.info(f"Discord complaint detected. Attempting to add offender: {offender_tag}")
+                offender = None
+                clean_tag = offender_tag.strip()
 
+                match = re.search(r'\d{17,}', clean_tag)
+                if match:
+                    try:
+                        offender_id = int(match.group(0))
+                        offender = interaction.guild.get_member(offender_id)
+                        if not offender:
+                            offender = await interaction.guild.fetch_member(offender_id)
+                        log.info(f"Found offender by ID: {offender.display_name}")
+                    except (ValueError, disnake.NotFound):
+                        log.warning(f"Could not find a member with ID {match.group(0)}, proceeding to search by name.")
+                    except Exception as e:
+                        log.error(f"Error fetching member by ID {match.group(0)}: {e}")
+
+                if not offender:
+                    log.info(f"Could not find offender by ID, trying by name: {clean_tag}")
+                    offender = interaction.guild.get_member_named(clean_tag)
+
+                if offender:
+                    log.info(f"Offender {offender.display_name} found. Adding to channel overwrites.")
+                    overwrites[offender] = disnake.PermissionOverwrite(read_messages=True, send_messages=True)
+                else:
+                    log.warning(f"Could not find offender on the server using the provided tag: {clean_tag}")
+
+        ticket_type = title
         channel_key = f"{platform.capitalize()}-{ticket_type}"
         log.info(f"Channel key: {channel_key}")
 
@@ -44,11 +74,9 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
         for role_name, rdata in staff_roles.items():
             role_id = rdata.get("id")
             permissions_value = rdata.get("permissions")
-
             if not role_id:
                 log.warning(f"Skipping role {role_name}: missing ID")
                 continue
-
             if permissions_value is None:
                 log.debug(f"Skipping role {role_name}: no permissions value")
                 continue
@@ -57,81 +85,66 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
             if not role:
                 log.warning(f"Role not found: {role_name} (ID: {role_id})")
                 continue
-
             log.debug(f"Checking role: {role_name} (ID: {role_id}), permissions: '{permissions_value}'")
 
             if channel_key in permissions_value:
                 log.info(f"Adding role {role_name} (ID: {role_id}) to ticket channel")
-                overwrites[role] = disnake.PermissionOverwrite(
-                    read_messages=True, send_messages=True, manage_messages=True
-                )
+                overwrites[role] = disnake.PermissionOverwrite(read_messages=True, send_messages=True, manage_messages=True)
             else:
                 log.debug(f"Skipping role {role_name}: '{channel_key}' not in '{permissions_value}'")
 
         log.info(f"Final overwrites: {list(overwrites.keys())}")
-
         display_name = interaction.author.display_name.replace(" ", "-").replace("#", "")
         channel_name = f"{title.lower()}-{platform}-{display_name}"[:100]
         log.info(f"Channel name: {channel_name}")
 
-        channel = await interaction.guild.create_text_channel(
-            name=channel_name,
-            category=category,
-            overwrites=overwrites
-        )
+        channel = await interaction.guild.create_text_channel(name=channel_name, category=category, overwrites=overwrites)
         log.info(f"Channel created: {channel.name} (ID: {channel.id})")
 
         webhook_name = category_webhook_config.get("name", "Tickets Bot")
-        webhook_avatar_url = category_webhook_config.get("avatar")
-
+        webhook_avatar_path = category_webhook_config.get("avatar")
         avatar_bytes = None
-        if webhook_avatar_url:
+        if webhook_avatar_path:
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(webhook_avatar_url) as resp:
-                        if resp.status == 200:
-                            avatar_bytes = await resp.read()
-            except Exception as e:
-                log.error(f"Error downloading webhook avatar: {e}")
+                with open(webhook_avatar_path, "rb") as f:
+                    avatar_bytes = f.read()
+            except FileNotFoundError:
+                log.error(f"Error reading webhook avatar file: {webhook_avatar_path}")
 
-        webhook = await channel.create_webhook(
-            name=webhook_name,
-            avatar=avatar_bytes
-        )
+        webhook = await channel.create_webhook(name=webhook_name, avatar=avatar_bytes)
         log.info(f"Webhook created: {webhook.name}")
 
-        texts = TEXTS[lang]["ticket_utils"]
-        title_text = texts["ticket_title"].format(
-            title=title,
-            user=interaction.author.display_name
-        )
-
+        texts_en = TEXTS["en"]["ticket_utils"]
+        title_text = texts_en["ticket_title"].format(title=title, user=interaction.author.display_name)
         color_name = TICKET_COLORS.get(title, "green")
+        color = getattr(disnake.Color, color_name, disnake.Color.green)()
 
-        if hasattr(disnake.Color, color_name):
-            color = getattr(disnake.Color, color_name)()
-        else:
-            color = disnake.Color.green()
-            log.warning(f"Unknown color name: {color_name}, using green fallback")
-
-        embed = Embed(
-            title=title_text,
-            color=color
-        )
-        embed.add_field(
-            name=texts["platform_field"],
-            value=platform.capitalize(),
-            inline=False
-        )
-
+        embed = Embed(title=title_text, color=color)
+        embed.add_field(name="Platform", value=platform.capitalize(), inline=False)
         footer_text = f"ticket_type:{ticket_type};lang:{lang};opener:{interaction.author.id}"
         embed.set_footer(text=footer_text)
         log.debug(f"Embed footer: {footer_text}")
 
-        for key, val in form_data.items():
-            field_value = val if len(val) <= 1024 else val[:1021] + "…"
-            embed.add_field(name=key, value=field_value, inline=False)
-            log.debug(f"Added field: {key} = {field_value[:50]}...")
+        field_mapping = {"offender": "offender", "offender_game": "offender", "reason": "rule", "datetime": "violation_datetime"}
+        field_order = ["offender", "rule", "violation_datetime"]
+        english_form_data = {}
+        for original_key, value in form_data.items():
+            new_key = field_mapping.get(original_key, original_key)
+            english_form_data[new_key] = value
+
+        for field_name in field_order:
+            if field_name in english_form_data:
+                field_value = english_form_data[field_name]
+                if len(field_value) > 1024:
+                    field_value = field_value[:1021] + "…"
+                embed.add_field(name=field_name, value=field_value, inline=False)
+                log.debug(f"Added field: {field_name} = {field_value[:50]}...")
+
+        for key, val in english_form_data.items():
+            if key not in field_order:
+                field_value = val if len(val) <= 1024 else val[:1021] + "…"
+                embed.add_field(name=key, value=field_value, inline=False)
+                log.debug(f"Added remaining field: {key} = {field_value[:50]}...")
 
         from .views import CloseTicketView
         close_view = CloseTicketView(lang=lang)

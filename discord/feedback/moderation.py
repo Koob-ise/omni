@@ -16,6 +16,29 @@ DEFAULT_VOICE_MUTE_DURATION = 1
 DEFAULT_BLACKLIST_DURATION = 600
 
 
+async def get_ticket_webhook(channel, config):
+    """Получает или создает вебхук для тикет-канала."""
+    webhook_config = config["categories"]["❓│Помощь / Support"]["webhook"]
+    webhook_name = webhook_config.get("name")
+
+    webhooks = await channel.webhooks()
+    webhook = disnake.utils.get(webhooks, name=webhook_name)
+
+    if webhook:
+        return webhook
+
+    try:
+        avatar_path = webhook_config.get("avatar")
+        avatar_bytes = None
+        if avatar_path:
+            with open(avatar_path, "rb") as f:
+                avatar_bytes = f.read()
+        return await channel.create_webhook(name=webhook_name, avatar=avatar_bytes)
+    except Exception as e:
+        log.error(f"Failed to create webhook in {channel.name}: {e}")
+        return None
+
+
 class ConfirmPunishmentView(View):
     def __init__(self, offender, action, duration_str, reason, delete_days, moderation_roles):
         super().__init__(timeout=60)
@@ -34,7 +57,9 @@ class ConfirmPunishmentView(View):
             return
 
         self.confirmed = True
-        await inter.response.edit_message(content="✅ Punishment confirmed", view=None)
+        button.disabled = True
+        self.children[1].disabled = True
+        await inter.response.edit_message(content="✅ Punishment confirmed", view=self)
         self.stop()
 
     @disnake.ui.button(label="Cancel", style=disnake.ButtonStyle.red)
@@ -43,7 +68,9 @@ class ConfirmPunishmentView(View):
             await inter.response.send_message("❌ You don't have permission to cancel!", ephemeral=True)
             return
 
-        await inter.response.edit_message(content="❌ Punishment canceled", view=None)
+        button.disabled = True
+        self.children[0].disabled = True
+        await inter.response.edit_message(content="❌ Punishment canceled", view=self)
         self.stop()
 
     def check_control_permission(self, inter):
@@ -79,21 +106,23 @@ def parse_duration(duration_str: str) -> timedelta:
     return timedelta(seconds=total_seconds)
 
 
-async def find_offender_in_ticket(channel):
-    async for message in channel.history(limit=1, oldest_first=True):
-        if not message.embeds:
-            return None
+async def find_offender_in_ticket(channel: disnake.TextChannel):
+    try:
+        message = await channel.history(limit=1, oldest_first=True).next()
+    except (disnake.NoMoreItems, disnake.NotFound):
+        log.warning(f"Could not find the initial message in ticket channel {channel.id}")
+        return None
 
-        embed = message.embeds[0]
+    if not message.embeds:
+        return None
 
-        offender_field = None
-        for field in embed.fields:
-            field_name = field.name.lower()
-            if any(keyword in field_name for keyword in ["offender"]):
-                offender_field = field.value
-                break
+    embed = message.embeds[0]
 
-        return offender_field
+    for field in embed.fields:
+        if field.name == "offender":
+            return field.value
+
+    log.warning(f"Field 'offender' not found in the initial message of ticket {channel.id}")
     return None
 
 
@@ -130,7 +159,6 @@ async def clear_user_messages(channel, member, days):
 
 async def apply_punishment(inter, offender, action, duration_delta, reason, delete_days, moderation_roles):
     deleted_count = 0
-    # Apply message deletion for ANY action if delete_days is specified.
     if delete_days > 0:
         deleted_count = await clear_user_messages(inter.channel, offender, delete_days)
         log.info(
@@ -196,7 +224,10 @@ def setup_moderation_commands(bot, channels_config, roles_config):
     bot.roles_config = roles_config
     moderation_roles = roles_config.get("moderation_roles", {})
 
-    @bot.slash_command(name="punishment")
+    @bot.slash_command(
+        name="punishment",
+        description="Applies a moderation action to a user within a ticket."
+    )
     async def punishment(
             inter: disnake.ApplicationCommandInteraction,
             action: str = commands.Param(choices=["ban", "mute", "kick", "voice-mute", "blacklist"]),
@@ -216,6 +247,29 @@ def setup_moderation_commands(bot, channels_config, roles_config):
         if inter.channel.category_id != ticket_category_id:
             return await inter.response.send_message("❌ Command only available in report channels!", ephemeral=True)
 
+        try:
+            initial_message = await inter.channel.history(limit=1, oldest_first=True).next()
+            if not initial_message.embeds:
+                raise disnake.NotFound
+        except (disnake.NoMoreItems, disnake.NotFound):
+            return await inter.response.send_message(
+                "❌ Could not find the initial ticket message with an embed.", ephemeral=True
+            )
+        embed = initial_message.embeds[0]
+
+        platform_field = next((field for field in embed.fields if field.name.lower() in ["platform", "платформа"]),
+                              None)
+        footer_text = embed.footer.text if embed.footer else ""
+
+        is_complaint = "ticket_type:Complaint" in footer_text
+        is_discord = platform_field and platform_field.value.lower() == "discord"
+
+        if not (is_complaint and is_discord):
+            return await inter.response.send_message(
+                "❌ This command can only be used in a Discord complaint ticket.",
+                ephemeral=True
+            )
+
         if not has_permission(inter.author, action, roles_config):
             return await inter.response.send_message("❌ Insufficient permissions for this action!", ephemeral=True)
 
@@ -224,8 +278,6 @@ def setup_moderation_commands(bot, channels_config, roles_config):
                 "❌ Duration not allowed for kick!",
                 ephemeral=True
             )
-
-        # The check limiting delete_days to specific actions has been removed.
 
         offender_tag = await find_offender_in_ticket(inter.channel)
         if not offender_tag:
@@ -307,7 +359,6 @@ def setup_moderation_commands(bot, channels_config, roles_config):
 
         embed.add_field(name="⏱ Duration", value=duration_text, inline=True)
 
-        # Add the field if delete_days is used for ANY action.
         if delete_days > 0:
             embed.add_field(
                 name="🗑 Delete messages",
@@ -327,12 +378,12 @@ def setup_moderation_commands(bot, channels_config, roles_config):
             moderation_roles=moderation_roles
         )
 
-        confirmation_msg = await inter.channel.send(embed=embed, view=view)
+        webhook = await get_ticket_webhook(inter.channel, channels_config)
+        if not webhook:
+            return await inter.response.send_message("❌ Could not get a webhook for this channel.", ephemeral=True)
 
-        await inter.response.send_message(
-            "⏳ Waiting for punishment confirmation...",
-            ephemeral=True
-        )
+        await inter.response.send_message("⏳ Waiting for punishment confirmation...", ephemeral=True)
+        confirmation_msg = await webhook.send(embed=embed, view=view, wait=True)
 
         try:
             await view.wait()
@@ -378,7 +429,13 @@ def setup_moderation_commands(bot, channels_config, roles_config):
                         log_embed.add_field(name="📝 Reason", value=reason, inline=False)
 
                         try:
-                            await channel.send(embed=log_embed)
+                            punishments_webhook_config = channels_config["channels"]["📌│punishments"].get("webhook", {})
+                            punishments_webhook_name = punishments_webhook_config.get("name")
+                            log_webhook = await get_webhook(channel, punishments_webhook_name)
+                            if log_webhook:
+                                await log_webhook.send(embed=log_embed)
+                            else:
+                                await channel.send(embed=log_embed)
                         except Exception as e:
                             log.error(f"Error sending log: {e}")
 
@@ -388,18 +445,81 @@ def setup_moderation_commands(bot, channels_config, roles_config):
                     elif delete_days > 0:
                         response_message += " No messages from the user were found to delete in this channel."
 
-                    await inter.edit_original_message(content=response_message)
+                    await webhook.send(content=response_message)
                 else:
-                    await inter.edit_original_message(
-                        content=f"❌ Failed to apply punishment to {offender.mention}!"
-                    )
+                    await webhook.send(content=f"❌ Failed to apply punishment to {offender.mention}!")
         except Exception as e:
             log.error(f"Error confirming punishment: {e}")
-            await inter.edit_original_message(
-                content="❌ An error occurred while processing punishment"
-            )
+            await webhook.send(content="❌ An error occurred while processing punishment")
         finally:
             try:
                 await confirmation_msg.delete()
-            except:
+            except disnake.NotFound:
                 pass
+
+    @bot.slash_command(
+        name="invite",
+        description="Invites a member to this ticket channel."
+    )
+    async def invite(
+            inter: disnake.ApplicationCommandInteraction,
+            member: disnake.Member = commands.Param(description="The member to invite to the ticket.")
+    ):
+        """Invites a member to the ticket channel."""
+        ticket_category_id = channels_config["categories"]["❓│Помощь / Support"]["id"]
+        if inter.channel.category_id != ticket_category_id:
+            return await inter.response.send_message(
+                "❌ This command can only be used in a ticket channel.",
+                ephemeral=True
+            )
+
+        if member.bot:
+            return await inter.response.send_message(
+                "❌ You cannot invite bots to a ticket.",
+                ephemeral=True
+            )
+
+        if member.id == inter.author.id:
+            return await inter.response.send_message(
+                "❌ You cannot invite yourself.",
+                ephemeral=True
+            )
+
+        current_perms = inter.channel.permissions_for(member)
+        if current_perms.read_messages:
+            return await inter.response.send_message(
+                f"❌ {member.mention} can already see this channel.",
+                ephemeral=True
+            )
+
+        try:
+            await inter.channel.set_permissions(
+                member,
+                read_messages=True,
+                send_messages=True,
+                reason=f"Invited by {inter.author.display_name} ({inter.author.id})"
+            )
+            log.info(f"{inter.author.display_name} invited {member.display_name} to ticket {inter.channel.name}.")
+        except Exception as e:
+            log.error(f"Failed to grant permissions to {member.display_name} in {inter.channel.name}: {e}")
+            return await inter.response.send_message(
+                "❌ An error occurred while trying to update channel permissions.",
+                ephemeral=True
+            )
+
+        webhook = await get_ticket_webhook(inter.channel, channels_config)
+        if webhook:
+            await webhook.send(f"👋 {member.mention} has been invited to this ticket by {inter.author.mention}.")
+        else:
+            await inter.channel.send(f"👋 {member.mention} has been invited to this ticket by {inter.author.mention}.")
+
+        await inter.response.send_message(
+            f"✅ Successfully invited {member.mention} to this ticket.",
+            ephemeral=True
+        )
+
+
+async def get_webhook(channel, webhook_name):
+    if not webhook_name: return None
+    webhooks = await channel.webhooks()
+    return disnake.utils.get(webhooks, name=webhook_name)

@@ -4,7 +4,7 @@
       "id": 1381441417125171280,
       "webhook": {
         "name": "📌 Tickets Bot",
-        "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128"
+        "avatar": "../configs/images/image.jpg"
       }
     }
   },
@@ -13,94 +13,94 @@
       "id": 1381427463263096904,
       "webhook": {
         "name": "🌍 Welcome Bot",
-        "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128",
-        "banner": "https://media.discordapp.net/attachments/1045039728883408946/1045334505516449812/2022-11-24_16.45.58.png?ex=6866899f&is=6865381f&hm=f766afdcb4a52c4cb840ec2193c045bf53c918d02686a664e10cc202a808e359&=&format=webp&quality=lossless&width=1473&height=920"
+        "avatar": "../configs/images/image.jpg",
+        "banner": "../configs/images/image.jpg"
       }
     },
     "⚖│обратная-связь": {
       "id": 1381443752547188788,
       "webhook": {
         "name": "⚖ Feedback Bot",
-        "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128",
-        "banner": "https://media.discordapp.net/attachments/1045039728883408946/1045334505516449812/2022-11-24_16.45.58.png?ex=6866899f&is=6865381f&hm=f766afdcb4a52c4cb840ec2193c045bf53c918d02686a664e10cc202a808e359&=&format=webp&quality=lossless&width=1473&height=920"
+        "avatar": "../configs/images/image.jpg",
+        "banner": "../configs/images/image.jpg"
       }
     },
     "⚖│feedback": {
       "id": 1381647530026336337,
       "webhook": {
         "name": "⚖ Feedback Bot",
-        "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128",
-        "banner": "https://media.discordapp.net/attachments/1045039728883408946/1045334505516449812/2022-11-24_16.45.58.png?ex=6866899f&is=6865381f&hm=f766afdcb4a52c4cb840ec2193c045bf53c918d02686a664e10cc202a808e359&=&format=webp&quality=lossless&width=1473&height=920"
+        "avatar": "../configs/images/image.jpg",
+        "banner": "../configs/images/image.jpg"
       }
     },
     "📌│информация": {
       "id": 1381439997051277374,
       "webhook": {
         "name": "📌 Info Bot",
-        "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128"
+        "avatar": "../configs/images/image.jpg"
       }
     },
     "📜│правила": {
       "id": 1381440017234268170,
       "webhook": {
         "name": "📜 Rules Bot",
-        "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128"
+        "avatar": "../configs/images/image.jpg"
       }
     },
     "🔄│обновления": {
       "id": 1381440327868481556,
       "webhook": {
         "name": "🔄 Updates Bot",
-        "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128"
+        "avatar": "../configs/images/image.jpg"
       }
     },
     "📢│новости": {
       "id": 1381440302447071284,
       "webhook": {
         "name": "📢 News Bot",
-        "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128"
+        "avatar": "../configs/images/image.jpg"
       }
     },
     "📌│server-info": {
       "id": 1381440052411760793,
       "webhook": {
         "name": "📌 Info Bot",
-        "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128"
+        "avatar": "../configs/images/image.jpg"
       }
     },
     "📜│rules": {
       "id": 1381440069553885276,
       "webhook": {
         "name": "📜 Rules Bot",
-        "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128"
+        "avatar": "../configs/images/image.jpg"
       }
     },
     "🔄│updates": {
       "id": 1381440382918725684,
       "webhook": {
         "name": "🔄 Updates Bot",
-        "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128"
+        "avatar": "../configs/images/image.jpg"
       }
     },
     "📢│announcements": {
       "id": 1381440366896484392,
       "webhook": {
         "name": "📢 Announcements Bot",
-        "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128"
+        "avatar": "../configs/images/image.jpg"
       }
     },
     "📌│closed-tickets": {
       "id": 1385444683639033877,
       "webhook": {
         "name": "📌 Tickets Bot",
-        "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128"
+        "avatar": "../configs/images/image.jpg"
       }
     },
     "📌│punishments": {
       "id": 1399782566860554342,
       "webhook": {
         "name": "📌 Punishments Bot",
-        "avatar": "https://cdn.discordapp.com/avatars/620552301706346497/16df97c5f67f24e87676d052d87a3fb9.webp?size=128"
+        "avatar": "../configs/images/image.jpg"
       }
     }
   },

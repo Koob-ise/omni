@@ -3,8 +3,11 @@ from disnake import Embed
 import asyncio
 import time
 import logging
+import re
 from configs.feedback_config import config, TEXTS, TICKET_COLORS
 from .views import FeedbackView
+from .modals import ConfirmCloseModal
+from .moderation import find_offender_in_ticket
 
 log = logging.getLogger(__name__)
 
@@ -13,11 +16,29 @@ last_cleanup = time.time()
 
 
 async def get_webhook(channel, webhook_name):
-    webhooks = await channel.webhooks()
-    for webhook in webhooks:
-        if webhook.name == webhook_name:
-            return webhook
+    """Находит вебхук по имени в канале."""
+    try:
+        webhooks = await channel.webhooks()
+        for webhook in webhooks:
+            if webhook.name == webhook_name:
+                return webhook
+    except disnake.Forbidden:
+        log.error(f"No permissions to get webhooks in {channel.name}")
+    except Exception as e:
+        log.error(f"Error getting webhooks in {channel.name}: {e}")
     return None
+
+
+def has_close_permission(member, permission_key, roles_config):
+    """Проверяет, есть ли у участника права на закрытие тикета."""
+    for role in member.roles:
+        role_id = role.id
+        for role_data in roles_config.get("staff_roles", {}).values():
+            if role_data.get("id") == role_id and role_data.get("permissions"):
+                permissions = [p.strip() for p in role_data["permissions"].split(",")]
+                if permission_key in permissions:
+                    return True
+    return False
 
 
 async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
@@ -28,59 +49,83 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
         if interaction.component.custom_id != "persistent_close_ticket":
             return
 
+        await interaction.response.defer(ephemeral=True)
+
         channel = interaction.channel
         message = await channel.fetch_message(interaction.message.id)
 
+        texts_en = TEXTS["en"]["setup"]["errors"]
+        texts_ru = TEXTS["ru"]["setup"]["errors"]
+
         if not message.embeds:
-            texts = TEXTS.get("ru", TEXTS["en"])["setup"]["errors"]
-            await interaction.response.send_message(texts["ticket_info"], ephemeral=True)
+            await interaction.followup.send(texts_ru.get("ticket_info", texts_en["ticket_info"]), ephemeral=True)
             return
 
         embed = message.embeds[0]
         footer_text = embed.footer.text
 
         if not footer_text:
-            texts = TEXTS.get("ru", TEXTS["en"])["setup"]["errors"]
-            await interaction.response.send_message(texts["metadata"], ephemeral=True)
+            await interaction.followup.send(texts_ru.get("metadata", texts_en["metadata"]), ephemeral=True)
             return
 
         metadata = {}
         for part in footer_text.split(";"):
             if ":" in part:
                 key, value = part.split(":", 1)
-                metadata[key] = value
+                metadata[key.strip()] = value.strip()
 
-        if "ticket_type" not in metadata or "lang" not in metadata or "opener" not in metadata:
-            texts = TEXTS.get("ru", TEXTS["en"])["setup"]["errors"]
-            await interaction.response.send_message(texts["invalid_metadata"], ephemeral=True)
+        if not all(k in metadata for k in ["ticket_type", "lang", "opener"]):
+            await interaction.followup.send(texts_ru.get("invalid_metadata", texts_en["invalid_metadata"]),
+                                            ephemeral=True)
             return
 
         ticket_type = metadata["ticket_type"]
         lang = metadata["lang"]
         opener_id = int(metadata["opener"])
+        texts = TEXTS.get(lang, TEXTS["en"])
+
+        platform_field = next((field for field in embed.fields if field.name in ["Platform", "Платформа"]), None)
+        if not platform_field:
+            await interaction.followup.send(texts["setup"]["errors"]["platform"], ephemeral=True)
+            return
+        platform = platform_field.value.lower()
+
+        is_opener = interaction.author.id == opener_id
+        permission_key = f"{platform.capitalize()}-{ticket_type}"
+        has_perm = has_close_permission(interaction.author, permission_key, roles_config)
+
+        if not is_opener and not has_perm:
+            await interaction.followup.send(texts["setup"]["errors"]["close_permission"], ephemeral=True)
+            return
+
+        if ticket_type == "Complaint" and has_perm:
+            offender_tag = await find_offender_in_ticket(channel)
+            if offender_tag:
+                clean_tag = re.sub(r'[<@!>]', '', offender_tag).strip()
+                offender = None
+                try:
+                    offender_id = int(clean_tag)
+                    offender = await interaction.guild.fetch_member(offender_id)
+                except (ValueError, disnake.NotFound):
+                    offender = interaction.guild.get_member_named(clean_tag)
+
+                if offender and offender.id == interaction.author.id:
+                    await interaction.followup.send(texts["setup"]["errors"]["offender_cannot_close"], ephemeral=True)
+                    return
 
         opener = interaction.guild.get_member(opener_id)
         if not opener:
             try:
                 opener = await interaction.guild.fetch_member(opener_id)
             except disnake.NotFound:
-                texts = TEXTS.get("ru", TEXTS["en"])["setup"]["errors"]
-                await interaction.response.send_message(texts["opener"], ephemeral=True)
+                await interaction.followup.send(texts["setup"]["errors"]["opener"], ephemeral=True)
                 return
-
-        platform_field = next((field for field in embed.fields if field.name in ["Platform", "Платформа"]), None)
-        if not platform_field:
-            texts = TEXTS.get("ru", TEXTS["en"])["setup"]["errors"]
-            await interaction.response.send_message(texts["platform"], ephemeral=True)
-            return
-        platform = platform_field.value
 
         form_data = {}
         for field in embed.fields:
             if field.name not in ["Platform", "Платформа"]:
                 form_data[field.name] = field.value
 
-        from .modals import ConfirmCloseModal
         modal = ConfirmCloseModal(
             channel=channel,
             opener=opener,
@@ -92,7 +137,8 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
             },
             lang=lang
         )
-        await interaction.response.send_message(content=modal.confirmation_text, view=modal, ephemeral=True)
+        await interaction.followup.send(content=modal.confirmation_text, view=modal, ephemeral=True)
+
     guild = bot.get_guild(guild_id)
     if not guild:
         log.error(f"Сервер с ID {guild_id} не найден")
@@ -109,11 +155,26 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
             log.error(f"Канал не найден: ID {ch_cfg['id']}")
             return
 
-        webhook_name = ch_cfg["webhook"]["name"]
+        webhook_cfg = ch_cfg.get("webhook", {})
+        webhook_name = webhook_cfg.get("name")
+        webhook_avatar_path = webhook_cfg.get("avatar")
+
+        if not webhook_name:
+            log.error(f"Имя вебхука не указано для канала {ch_key}")
+            return
+
         webhook = await get_webhook(channel, webhook_name)
         if not webhook:
             try:
-                webhook = await channel.create_webhook(name=webhook_name)
+                avatar_bytes = None
+                if webhook_avatar_path:
+                    try:
+                        with open(webhook_avatar_path, "rb") as f:
+                            avatar_bytes = f.read()
+                    except FileNotFoundError:
+                        log.warning(f"Файл аватара для вебхука {webhook_name} не найден: {webhook_avatar_path}")
+
+                webhook = await channel.create_webhook(name=webhook_name, avatar=avatar_bytes)
                 log.info(f"Создан новый вебхук: {webhook_name}")
             except Exception as e:
                 log.error(f"Ошибка создания вебхука: {e}")
@@ -126,11 +187,7 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
                 break
 
         color_name = TICKET_COLORS.get("feedback", "orange")
-        if hasattr(disnake.Color, color_name):
-            color = getattr(disnake.Color, color_name)()
-        else:
-            color = disnake.Color.orange()
-            log.warning(f"Unknown color name: {color_name}, using orange fallback")
+        color = getattr(disnake.Color, color_name, disnake.Color.orange)()
 
         texts = TEXTS[lang]["setup"]["feedback"]
         embed = Embed(
@@ -139,8 +196,15 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
             color=color,
         )
 
-        if "banner" in ch_cfg.get("webhook", {}) and ch_cfg["webhook"]["banner"]:
-            embed.set_image(url=ch_cfg["webhook"]["banner"])
+        banner_file = None
+        banner_path = webhook_cfg.get("banner")
+        if banner_path:
+            try:
+                banner_file = disnake.File(banner_path, filename=banner_path.split('/')[-1])
+                embed.set_image(url=f"attachment://{banner_file.filename}")
+            except FileNotFoundError:
+                log.warning(f"Файл баннера не найден: {banner_path}")
+                banner_file = None
 
         view = FeedbackView(
             lang=lang,
@@ -150,12 +214,15 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
             channel_id=channel.id
         )
 
+        files_to_send = [banner_file] if banner_file else []
+
         if existing_message:
             try:
                 await webhook.edit_message(
                     existing_message.id,
                     embed=embed,
-                    view=view
+                    view=view,
+                    files=files_to_send
                 )
                 log.info(f"Сообщение в канале {channel.name} обновлено")
                 view.message = existing_message
@@ -166,6 +233,7 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
                 message = await webhook.send(
                     embed=embed,
                     view=view,
+                    files=files_to_send,
                     wait=True
                 )
                 view.message = message
