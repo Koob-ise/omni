@@ -3,8 +3,9 @@ from disnake import ui
 import time
 import logging
 from configs.feedback_config import TYPE_OPTIONS_RU, TYPE_OPTIONS, PLATFORM_OPTIONS_RU, PLATFORM_OPTIONS, \
-    MODAL_CONFIGS_RU, MODAL_CONFIGS, TEXTS
+    MODAL_CONFIGS_RU, MODAL_CONFIGS, TEXTS, TICKET_COLORS
 from .ticket_utils import create_ticket_channel
+import os
 
 log = logging.getLogger(__name__)
 
@@ -23,34 +24,40 @@ class CloseTicketView(ui.View):
 
 
 class FeedbackView(ui.View):
-    def __init__(self, lang="en", is_russian=False, user_states=None, webhook_name=None, channel_id=None):
+    def __init__(self, lang="en", is_russian=False, user_states=None, webhook_name=None, channel_id=None,
+                 banner_path=None):
         super().__init__(timeout=None)
         self.lang = lang
         self.is_russian = is_russian
         self.user_states = user_states if user_states is not None else {}
         self.webhook_name = webhook_name
         self.channel_id = channel_id
+        self.banner_path = banner_path
         self.message = None
+        self._rebuild_components()
 
-        texts = TEXTS[lang]["views"]
-        type_options = TYPE_OPTIONS_RU if is_russian else TYPE_OPTIONS
+    def _rebuild_components(self):
+        self.clear_items()
+        texts = TEXTS[self.lang]["views"]
+
+        type_options = TYPE_OPTIONS_RU if self.is_russian else TYPE_OPTIONS
         self.type_select = ui.StringSelect(
             placeholder=texts["type_placeholder"],
             min_values=1,
             max_values=1,
             options=[disnake.SelectOption(**opt) for opt in type_options],
-            custom_id=f"type_select_{lang}"
+            custom_id=f"type_select_{self.lang}"
         )
         self.type_select.callback = self.type_callback
         self.add_item(self.type_select)
 
-        platform_options = PLATFORM_OPTIONS_RU if is_russian else PLATFORM_OPTIONS
+        platform_options = PLATFORM_OPTIONS_RU if self.is_russian else PLATFORM_OPTIONS
         self.platform_select = ui.StringSelect(
             placeholder=texts["platform_placeholder"],
             min_values=1,
             max_values=1,
             options=[disnake.SelectOption(**opt) for opt in platform_options],
-            custom_id=f"platform_select_{lang}"
+            custom_id=f"platform_select_{self.lang}"
         )
         self.platform_select.callback = self.platform_callback
         self.add_item(self.platform_select)
@@ -58,7 +65,7 @@ class FeedbackView(ui.View):
         self.submit_button = ui.Button(
             label=texts["submit_button"],
             style=disnake.ButtonStyle.green,
-            custom_id=f"submit_{lang}"
+            custom_id=f"submit_{self.lang}"
         )
         self.submit_button.callback = self.submit_callback
         self.add_item(self.submit_button)
@@ -94,16 +101,13 @@ class FeedbackView(ui.View):
         state = self.user_states.get(state_key, {})
         texts = TEXTS[self.lang]["views"]
 
-        error_msg = None
-
         if not (state.get("selected_type") and state.get("selected_platform")):
-            error_msg = texts["errors"]["select_both"]
-            await interaction.response.send_message(error_msg, ephemeral=True)
+            await interaction.response.send_message(texts["errors"]["select_both"], ephemeral=True)
             return
 
+
         if time.time() - state.get("timestamp", 0) > 1800:
-            error_msg = texts["errors"]["expired"]
-            await interaction.response.send_message(error_msg, ephemeral=True)
+            await interaction.response.send_message(texts["errors"]["expired"], ephemeral=True)
             if state_key in self.user_states:
                 del self.user_states[state_key]
             return
@@ -113,14 +117,6 @@ class FeedbackView(ui.View):
 
         if state_key in self.user_states:
             del self.user_states[state_key]
-
-        new_view = FeedbackView(
-            lang=self.lang,
-            is_russian=self.is_russian,
-            user_states=self.user_states,
-            webhook_name=self.webhook_name,
-            channel_id=self.channel_id
-        )
 
         if self.is_russian:
             modal_config = MODAL_CONFIGS_RU[selected_type]
@@ -139,8 +135,6 @@ class FeedbackView(ui.View):
                 style=input_config["style"],
                 max_length=input_config.get("max_length", 4000)
             ))
-
-        texts_utils = TEXTS[self.lang]["ticket_utils"]
 
         class FeedbackModal(disnake.ui.Modal):
             def __init__(self, is_russian, ticket_type, platform):
@@ -161,33 +155,22 @@ class FeedbackView(ui.View):
 
                     if self.ticket_type == "complaint" and self.platform == "discord":
                         offender_tag = modal_interaction.text_values.get("offender")
-
                         if not offender_tag or offender_tag.strip() == "":
-                            error_msg = texts_utils["errors"]["missing_tag"]
-                            await modal_interaction.followup.send(error_msg, ephemeral=True)
+                            await modal_interaction.followup.send(texts_utils["errors"]["missing_tag"], ephemeral=True)
                             return
-
-                        guild = modal_interaction.guild
-                        offender = guild.get_member_named(offender_tag.strip())
-
-                        if not offender:
-                            error_msg = texts_utils["errors"]["member_not_found"].format(tag=offender_tag)
-                            await modal_interaction.followup.send(error_msg, ephemeral=True)
+                        if str(modal_interaction.author.id) in offender_tag:
+                            await modal_interaction.followup.send("You cannot report yourself.", ephemeral=True)
                             return
 
                     channel = await create_ticket_channel(
-                        modal_interaction,
-                        title_for_ticket,
-                        selected_platform,
-                        modal_interaction.text_values,
-                        lang=lang
+                        modal_interaction, title_for_ticket, selected_platform,
+                        modal_interaction.text_values, lang=lang
                     )
-                    success_msg = texts_utils["success"].format(channel=channel.mention)
-                    await modal_interaction.followup.send(success_msg, ephemeral=True)
+                    await modal_interaction.followup.send(texts_utils["success"].format(channel=channel.mention),
+                                                          ephemeral=True)
                 except Exception as e:
                     log.error(f"Error creating ticket: {e}", exc_info=True)
-                    error_msg = texts_utils["error"]
-                    await modal_interaction.followup.send(error_msg, ephemeral=True)
+                    await modal_interaction.followup.send(texts_utils["error"], ephemeral=True)
 
         modal = FeedbackModal(
             is_russian=self.is_russian,
@@ -207,11 +190,34 @@ class FeedbackView(ui.View):
                 log.error(f"Webhook '{self.webhook_name}' not found in channel {channel.id}")
                 return
 
+            self._rebuild_components()
+
+            feedback_texts = TEXTS[self.lang]["setup"]["feedback"]
+            color_name = TICKET_COLORS.get("feedback", "orange")
+            color = getattr(disnake.Color, color_name, disnake.Color.orange)()
+
+            new_embed = disnake.Embed(
+                title=feedback_texts["title"],
+                description=feedback_texts["description"],
+                color=color,
+            )
+
+            files_to_send = []
+            if self.banner_path:
+                try:
+                    filename = os.path.basename(self.banner_path)
+                    banner_file = disnake.File(self.banner_path, filename=filename)
+                    files_to_send.append(banner_file)
+                    new_embed.set_image(url=f"attachment://{filename}")
+                except FileNotFoundError:
+                    log.warning(f"Banner file not found at {self.banner_path} during message edit.")
+
             await webhook.edit_message(
                 interaction.message.id,
                 content=interaction.message.content,
-                embeds=interaction.message.embeds,
-                view=new_view
+                embeds=[new_embed],
+                view=self,
+                files=files_to_send
             )
         except Exception as e:
             log.error(f"Error updating message via webhook: {e}")

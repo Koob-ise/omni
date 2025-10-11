@@ -1,4 +1,4 @@
-from database.db import create_user
+from database.core import create_user
 import disnake
 from disnake import Embed, ui
 from disnake.ext import commands

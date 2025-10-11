@@ -7,7 +7,7 @@ import re
 from configs.feedback_config import config, TEXTS, TICKET_COLORS
 from .views import FeedbackView
 from .modals import ConfirmCloseModal
-from .moderation import find_offender_in_ticket
+from .moderation.helpers import find_offender_in_ticket
 
 log = logging.getLogger(__name__)
 
@@ -16,7 +16,6 @@ last_cleanup = time.time()
 
 
 async def get_webhook(channel, webhook_name):
-    """Находит вебхук по имени в канале."""
     try:
         webhooks = await channel.webhooks()
         for webhook in webhooks:
@@ -30,7 +29,6 @@ async def get_webhook(channel, webhook_name):
 
 
 def has_close_permission(member, permission_key, roles_config):
-    """Проверяет, есть ли у участника права на закрытие тикета."""
     for role in member.roles:
         role_id = role.id
         for role_data in roles_config.get("staff_roles", {}).values():
@@ -52,37 +50,34 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
         await interaction.response.defer(ephemeral=True)
 
         channel = interaction.channel
-        message = await channel.fetch_message(interaction.message.id)
+
+        offender_tag, metadata = await find_offender_in_ticket(channel)
 
         texts_en = TEXTS["en"]["setup"]["errors"]
         texts_ru = TEXTS["ru"]["setup"]["errors"]
 
-        if not message.embeds:
-            await interaction.followup.send(texts_ru.get("ticket_info", texts_en["ticket_info"]), ephemeral=True)
-            return
-
-        embed = message.embeds[0]
-        footer_text = embed.footer.text
-
-        if not footer_text:
-            await interaction.followup.send(texts_ru.get("metadata", texts_en["metadata"]), ephemeral=True)
-            return
-
-        metadata = {}
-        for part in footer_text.split(";"):
-            if ":" in part:
-                key, value = part.split(":", 1)
-                metadata[key.strip()] = value.strip()
-
-        if not all(k in metadata for k in ["ticket_type", "lang", "opener"]):
+        if not metadata:
             await interaction.followup.send(texts_ru.get("invalid_metadata", texts_en["invalid_metadata"]),
                                             ephemeral=True)
             return
 
-        ticket_type = metadata["ticket_type"]
-        lang = metadata["lang"]
-        opener_id = int(metadata["opener"])
+        ticket_type = metadata.get("ticket_type")
+        lang = metadata.get("lang")
+        opener_id_str = metadata.get("opener")
+
+        if not all([ticket_type, lang, opener_id_str]):
+            await interaction.followup.send(texts_ru.get("invalid_metadata", texts_en["invalid_metadata"]),
+                                            ephemeral=True)
+            return
+
+        opener_id = int(opener_id_str)
         texts = TEXTS.get(lang, TEXTS["en"])
+
+        message = await channel.fetch_message(interaction.message.id)
+        if not message.embeds:
+            await interaction.followup.send(texts_ru.get("ticket_info", texts_en["ticket_info"]), ephemeral=True)
+            return
+        embed = message.embeds[0]
 
         platform_field = next((field for field in embed.fields if field.name in ["Platform", "Платформа"]), None)
         if not platform_field:
@@ -98,20 +93,18 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
             await interaction.followup.send(texts["setup"]["errors"]["close_permission"], ephemeral=True)
             return
 
-        if ticket_type == "Complaint" and has_perm:
-            offender_tag = await find_offender_in_ticket(channel)
-            if offender_tag:
-                clean_tag = re.sub(r'[<@!>]', '', offender_tag).strip()
-                offender = None
-                try:
-                    offender_id = int(clean_tag)
-                    offender = await interaction.guild.fetch_member(offender_id)
-                except (ValueError, disnake.NotFound):
-                    offender = interaction.guild.get_member_named(clean_tag)
+        if ticket_type == "Complaint" and has_perm and offender_tag:
+            clean_tag = re.sub(r'[<@!>]', '', offender_tag).strip()
+            offender = None
+            try:
+                offender_id = int(clean_tag)
+                offender = await interaction.guild.fetch_member(offender_id)
+            except (ValueError, disnake.NotFound):
+                offender = interaction.guild.get_member_named(clean_tag)
 
-                if offender and offender.id == interaction.author.id:
-                    await interaction.followup.send(texts["setup"]["errors"]["offender_cannot_close"], ephemeral=True)
-                    return
+            if offender and offender.id == interaction.author.id:
+                await interaction.followup.send(texts["setup"]["errors"]["offender_cannot_close"], ephemeral=True)
+                return
 
         opener = interaction.guild.get_member(opener_id)
         if not opener:
@@ -205,13 +198,15 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
             except FileNotFoundError:
                 log.warning(f"Файл баннера не найден: {banner_path}")
                 banner_file = None
+                banner_path = None
 
         view = FeedbackView(
             lang=lang,
             is_russian=is_russian,
             user_states=user_states,
             webhook_name=webhook_name,
-            channel_id=channel.id
+            channel_id=channel.id,
+            banner_path = banner_path
         )
 
         files_to_send = [banner_file] if banner_file else []

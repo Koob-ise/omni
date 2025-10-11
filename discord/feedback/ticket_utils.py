@@ -3,6 +3,8 @@ from disnake import Embed
 import logging
 from configs.feedback_config import config, TEXTS, TICKET_COLORS
 import re
+from database.tickets import log_ticket_open
+from database.core import get_user_internal_id, get_info_for_all_active_punishments
 
 log = logging.getLogger(__name__)
 
@@ -89,7 +91,8 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
 
             if channel_key in permissions_value:
                 log.info(f"Adding role {role_name} (ID: {role_id}) to ticket channel")
-                overwrites[role] = disnake.PermissionOverwrite(read_messages=True, send_messages=True, manage_messages=True)
+                overwrites[role] = disnake.PermissionOverwrite(read_messages=True, send_messages=True,
+                                                               manage_messages=True)
             else:
                 log.debug(f"Skipping role {role_name}: '{channel_key}' not in '{permissions_value}'")
 
@@ -98,7 +101,8 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
         channel_name = f"{title.lower()}-{platform}-{display_name}"[:100]
         log.info(f"Channel name: {channel_name}")
 
-        channel = await interaction.guild.create_text_channel(name=channel_name, category=category, overwrites=overwrites)
+        channel = await interaction.guild.create_text_channel(name=channel_name, category=category,
+                                                              overwrites=overwrites)
         log.info(f"Channel created: {channel.name} (ID: {channel.id})")
 
         webhook_name = category_webhook_config.get("name", "Tickets Bot")
@@ -120,12 +124,58 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
         color = getattr(disnake.Color, color_name, disnake.Color.green)()
 
         embed = Embed(title=title_text, color=color)
+
+        if title == "Appeal":
+            log.info(f"Обнаружен тикет-апелляция от пользователя {interaction.author.id}.")
+            user_internal_id = get_user_internal_id(platform, interaction.author.id)
+
+            if user_internal_id:
+                active_punishments = get_info_for_all_active_punishments(user_internal_id)
+
+                if active_punishments:
+                    log.info(
+                        f"Найдено {len(active_punishments)} активных наказаний для пользователя {user_internal_id}.")
+                    server_id = interaction.guild.id
+                    closed_tickets_channel_id = config.channels["channels"]["📌│closed-tickets"]["id"]
+
+                    punishment_links = []
+                    for punishment in active_punishments:
+                        action_type = punishment['action_type'].capitalize()
+                        log_message_id = punishment.get('log_message_id')
+                        channel_id = punishment.get('channel_id')
+
+                        link = ""
+                        link_text = ""
+
+                        if log_message_id:
+                            link = f"https://discord.com/channels/{server_id}/{closed_tickets_channel_id}/{log_message_id}"
+                            link_text = "Посмотреть лог"
+                        elif channel_id:
+                            link = f"https://discord.com/channels/{server_id}/{channel_id}"
+                            link_text = "Перейти к тикету"
+                        else:
+                            continue
+
+                        punishment_links.append(f"**{action_type}**: [{link_text}]({link})")
+
+                    if punishment_links:
+                        embed.add_field(
+                            name="Найденные активные наказания",
+                            value="\n".join(punishment_links),
+                            inline=False
+                        )
+                else:
+                    log.warning(f"Активных наказаний, связанных с тикетами, для {user_internal_id} не найдено.")
+            else:
+                log.warning(f"Не удалось найти внутреннего ID для пользователя {interaction.author.id}.")
+
         embed.add_field(name="Platform", value=platform.capitalize(), inline=False)
         footer_text = f"ticket_type:{ticket_type};lang:{lang};opener:{interaction.author.id}"
         embed.set_footer(text=footer_text)
         log.debug(f"Embed footer: {footer_text}")
 
-        field_mapping = {"offender": "offender", "offender_game": "offender", "reason": "rule", "datetime": "violation_datetime"}
+        field_mapping = {"offender": "offender", "offender_game": "offender", "reason": "rule",
+                         "datetime": "violation_datetime"}
         field_order = ["offender", "rule", "violation_datetime"]
         english_form_data = {}
         for original_key, value in form_data.items():
@@ -150,6 +200,8 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
         close_view = CloseTicketView(lang=lang)
         await webhook.send(embed=embed, view=close_view)
         log.info("Ticket message sent to channel via webhook")
+
+        log_ticket_open(interaction.author.id, channel.id)
 
         await webhook.delete()
         log.info("Webhook deleted")

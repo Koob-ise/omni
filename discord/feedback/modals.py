@@ -3,13 +3,12 @@ from disnake import ui, Embed
 import io
 import logging
 from configs.feedback_config import config, TEXTS, TICKET_COLORS
-from database.db import create_ticket
+from database.tickets import log_ticket_close
 
 log = logging.getLogger(__name__)
 
 
 async def get_webhook(channel, webhook_name):
-    """Находит вебхук по имени в канале."""
     if not webhook_name: return None
     try:
         webhooks = await channel.webhooks()
@@ -48,10 +47,11 @@ class ConfirmCloseModal(ui.View):
 
         if message_link:
             try:
-                create_ticket(str(self.opener.id), message_link)
+                log_ticket_close(self.channel.id, message_link)
             except Exception as e:
-                await interaction.followup.send(self.texts["db_error"], ephemeral=True)
-                return
+                log.error(f"DB Error on ticket close: {e}")
+
+        await interaction.followup.send(self.texts["success"], ephemeral=True)
 
         try:
             await self.channel.delete(reason=f"Ticket closed by {closed_by.display_name}")
@@ -59,10 +59,8 @@ class ConfirmCloseModal(ui.View):
             pass
         except Exception as e:
             log.error(f"Could not delete ticket channel {self.channel.id}: {e}")
-            await interaction.followup.send(self.texts["delete_error"], ephemeral=True)
             return
 
-        await interaction.followup.send(self.texts["success"], ephemeral=True)
         self.stop()
 
     @ui.button(label="Cancel", style=disnake.ButtonStyle.secondary, custom_id="cancel_close")
