@@ -3,7 +3,7 @@ import pytz
 from .core import db_connection, create_user, logger
 
 
-def log_ticket_open(opener_discord_id, channel_id):
+def log_ticket_open(opener_discord_id, channel_id, ticket_type, offender_identifier=None):
     gmt = pytz.timezone('GMT')
     current_time = datetime.now(gmt).strftime('%Y-%m-%d %H:%M:%S')
 
@@ -13,11 +13,13 @@ def log_ticket_open(opener_discord_id, channel_id):
         cursor = conn.cursor()
         try:
             cursor.execute(
-                'INSERT INTO tickets (user_id, channel_id, status, created_at) VALUES (?, ?, ?, ?)',
-                (internal_user_id, str(channel_id), 'OPEN', current_time)
+                '''INSERT INTO tickets 
+                   (user_id, channel_id, status, created_at, ticket_type, offender_identifier) 
+                   VALUES (?, ?, ?, ?, ?, ?)''',
+                (internal_user_id, str(channel_id), 'OPEN', current_time, ticket_type, offender_identifier)
             )
             conn.commit()
-            logger.info(f"Logged new OPEN ticket for channel {channel_id}")
+            logger.info(f"Logged new OPEN ticket for channel {channel_id}, type: {ticket_type}, offender_identifier: {offender_identifier}")
         except Exception as e:
             logger.error(f"Failed to log open ticket for channel {channel_id}: {e}")
 

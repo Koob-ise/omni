@@ -2,19 +2,11 @@ from datetime import datetime, timedelta
 import pytz
 from .core import (
     _add_action, create_user, get_active_punishment, deactivate_action,
-    revoke_action, get_user_internal_id, logger
+    revoke_action, get_user_internal_id, logger, resolve_user_ids
 )
 
 
-def _resolve_user_ids(platform, main_user_id, performer_id):
-    user_params = {'discord_id': main_user_id} if platform == 'discord' else {'mindustry_id': main_user_id}
-    main_user_internal_id = create_user(**user_params)
-    performer_internal_id = create_user(discord_id=performer_id)
-    return main_user_internal_id, performer_internal_id
-
-
 def _handle_punishment_stacking(user_internal_id, action_type, new_end_time_dt):
-
     existing_punishment = get_active_punishment(user_internal_id, action_type)
 
     if existing_punishment:
@@ -39,119 +31,55 @@ def _handle_punishment_stacking(user_internal_id, action_type, new_end_time_dt):
     return True
 
 
-def add_mute(platform, main_user_id, muted_by_id, reason, duration_seconds, ticket_id=None):
-    main_user_internal_id, performer_internal_id = _resolve_user_ids(platform, main_user_id, muted_by_id)
-    gmt = pytz.timezone('GMT')
-    end_time_dt = datetime.now(gmt) + timedelta(seconds=duration_seconds)
+def add_punishment(platform, main_user_id, performer_id, reason, action_type, duration_seconds=None, ticket_id=None):
+    main_user_internal_id, performer_internal_id = resolve_user_ids(platform, main_user_id, performer_id)
 
-    if _handle_punishment_stacking(main_user_internal_id, "mute", end_time_dt):
-        _add_action(main_user_internal_id, performer_internal_id, "mute", reason=reason,
-                    duration_seconds=duration_seconds, expires_at=end_time_dt.strftime('%Y-%m-%d %H:%M:%S'),
-                    ticket_id=ticket_id)
+    # Обработка действий без длительности (например, kick)
+    if action_type == "kick":
+        _add_action(main_user_internal_id, performer_internal_id, "kick", reason=reason, ticket_id=ticket_id)
         return 'ADDED'
-    return 'SKIPPED'
 
+    if duration_seconds is None:
+        raise ValueError(f"duration_seconds является обязательным для '{action_type}'")
 
-def add_ban(platform, main_user_id, banned_by_id, reason, duration_seconds, ticket_id=None):
-    main_user_internal_id, performer_internal_id = _resolve_user_ids(platform, main_user_id, banned_by_id)
     gmt = pytz.timezone('GMT')
     end_time_dt = datetime.now(gmt) + timedelta(seconds=duration_seconds)
+    expires_at_str = end_time_dt.strftime('%Y-%m-%d %H:%M:%S')
 
-    if _handle_punishment_stacking(main_user_internal_id, "ban", end_time_dt):
-        _add_action(main_user_internal_id, performer_internal_id, "ban", reason=reason,
-                    duration_seconds=duration_seconds, expires_at=end_time_dt.strftime('%Y-%m-%d %H:%M:%S'),
-                    ticket_id=ticket_id)
+    # Предупреждения (warns) не стакаются, а просто добавляются
+    if action_type == "warn":
+        _add_action(main_user_internal_id, performer_internal_id, "warn", reason=reason,
+                    duration_seconds=duration_seconds,
+                    expires_at=expires_at_str, ticket_id=ticket_id)
         return 'ADDED'
-    return 'SKIPPED'
+
+    # Обработка стакающихся наказаний (mute, ban, etc.)
+    stackable_actions = ["mute", "ban", "blacklist", "voice_mute"]
+    if action_type in stackable_actions:
+        if _handle_punishment_stacking(main_user_internal_id, action_type, end_time_dt):
+            _add_action(main_user_internal_id, performer_internal_id, action_type, reason=reason,
+                        duration_seconds=duration_seconds, expires_at=expires_at_str,
+                        ticket_id=ticket_id)
+            return 'ADDED'
+        return 'SKIPPED'
+
+    raise ValueError(f"Неподдерживаемый тип действия в add_punishment: {action_type}")
 
 
-def add_warn(platform, main_user_id, warned_by_id, reason, duration_seconds, ticket_id=None):
-    main_user_internal_id, performer_internal_id = _resolve_user_ids(platform, main_user_id, warned_by_id)
-    gmt = pytz.timezone('GMT')
-    end_time_dt = datetime.now(gmt) + timedelta(seconds=duration_seconds)
-    _add_action(main_user_internal_id, performer_internal_id, "warn", reason=reason, duration_seconds=duration_seconds,
-                expires_at=end_time_dt.strftime('%Y-%m-%d %H:%M:%S'), ticket_id=ticket_id)
-    return 'ADDED'
+def revoke_punishment(platform, main_user_id, revoked_by_id, reason, action_type):
+    """
+    Универсальная функция для снятия любого активного наказания в базе данных.
 
-
-def add_kick(platform, main_user_id, kicked_by_id, reason, ticket_id=None):
-    main_user_internal_id, performer_internal_id = _resolve_user_ids(platform, main_user_id, kicked_by_id)
-    _add_action(main_user_internal_id, performer_internal_id, "kick", reason=reason, ticket_id=ticket_id)
-    return 'ADDED'
-
-
-def blacklist(platform, main_user_id, blacklisted_by_id, reason, duration_seconds, ticket_id=None):
-    main_user_internal_id, performer_internal_id = _resolve_user_ids(platform, main_user_id, blacklisted_by_id)
-    gmt = pytz.timezone('GMT')
-    end_time_dt = datetime.now(gmt) + timedelta(seconds=duration_seconds)
-
-    if _handle_punishment_stacking(main_user_internal_id, "blacklist", end_time_dt):
-        _add_action(main_user_internal_id, performer_internal_id, "blacklist", reason=reason,
-                    duration_seconds=duration_seconds, expires_at=end_time_dt.strftime('%Y-%m-%d %H:%M:%S'),
-                    ticket_id=ticket_id)
-        return 'ADDED'
-    return 'SKIPPED'
-
-
-def add_voice_mute(platform, main_user_id, muted_by_id, reason, duration_seconds, ticket_id=None):
-    main_user_internal_id, performer_internal_id = _resolve_user_ids(platform, main_user_id, muted_by_id)
-    gmt = pytz.timezone('GMT')
-    end_time_dt = datetime.now(gmt) + timedelta(seconds=duration_seconds)
-
-    if _handle_punishment_stacking(main_user_internal_id, "voice_mute", end_time_dt):
-        _add_action(main_user_internal_id, performer_internal_id, "voice_mute", reason=reason,
-                    duration_seconds=duration_seconds, expires_at=end_time_dt.strftime('%Y-%m-%d %H:%M:%S'),
-                    ticket_id=ticket_id)
-        return 'ADDED'
-    return 'SKIPPED'
-
-
-
-def revoke_mute(platform, main_user_id, revoked_by_id, reason):
+    Returns:
+        bool: True в случае успеха, False если активное наказание не найдено.
+    """
     revoker_internal_id = create_user(discord_id=revoked_by_id)
     user_internal_id = get_user_internal_id(platform, main_user_id)
-    if not user_internal_id: return False
-    active_punishment = get_active_punishment(user_internal_id, "mute")
+    if not user_internal_id:
+        return False
+
+    active_punishment = get_active_punishment(user_internal_id, action_type)
     if active_punishment:
         return revoke_action(active_punishment['id'], revoker_internal_id, reason)
-    return False
 
-
-def revoke_ban(platform, main_user_id, revoked_by_id, reason):
-    revoker_internal_id = create_user(discord_id=revoked_by_id)
-    user_internal_id = get_user_internal_id(platform, main_user_id)
-    if not user_internal_id: return False
-    active_punishment = get_active_punishment(user_internal_id, "ban")
-    if active_punishment:
-        return revoke_action(active_punishment['id'], revoker_internal_id, reason)
-    return False
-
-
-def revoke_blacklist(platform, main_user_id, revoked_by_id, reason):
-    revoker_internal_id = create_user(discord_id=revoked_by_id)
-    user_internal_id = get_user_internal_id(platform, main_user_id)
-    if not user_internal_id: return False
-    active_punishment = get_active_punishment(user_internal_id, "blacklist")
-    if active_punishment:
-        return revoke_action(active_punishment['id'], revoker_internal_id, reason)
-    return False
-
-
-def revoke_voice_mute(platform, main_user_id, revoked_by_id, reason):
-    revoker_internal_id = create_user(discord_id=revoked_by_id)
-    user_internal_id = get_user_internal_id(platform, main_user_id)
-    if not user_internal_id: return False
-    active_punishment = get_active_punishment(user_internal_id, "voice_mute")
-    if active_punishment:
-        return revoke_action(active_punishment['id'], revoker_internal_id, reason)
-    return False
-
-
-def revoke_warn(platform, main_user_id, revoked_by_id, reason):
-    revoker_internal_id = create_user(discord_id=revoked_by_id)
-    user_internal_id = get_user_internal_id(platform, main_user_id)
-    if not user_internal_id: return False
-    active_punishment = get_active_punishment(user_internal_id, "warn")
-    if active_punishment:
-        return revoke_action(active_punishment['id'], revoker_internal_id, reason)
     return False

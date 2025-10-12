@@ -2,12 +2,14 @@ import disnake
 from disnake import Option, OptionType, TextInputStyle, HTTPException
 from disnake.ui import TextInput, Modal
 
+
 async def get_webhook(channel, webhook_name):
     webhooks = await channel.webhooks()
     for webhook in webhooks:
         if webhook.name == webhook_name:
             return webhook
     return None
+
 
 def setup_slash_commands_push(bot, channels_config, roles_config):
     command_data = {}
@@ -30,15 +32,23 @@ def setup_slash_commands_push(bot, channels_config, roles_config):
                 name="channel",
                 description="Select a channel to send the message to",
                 required=True,
-                choices=["🔄│updates", "📢│announcements","📌│server-info", "📜│rules", "🔄│обновления", "📢│новости", "📌│информация", "📜│правила"],
+                choices=["🔄│updates", "📢│announcements", "📌│server-info", "📜│rules", "🔄│обновления", "📢│новости",
+                         "📌│информация", "📜│правила"],
                 type=OptionType.string
             ),
             Option(
                 name="color",
                 description="Select the embed color",
                 required=True,
-                choices=["blue", "red", "green", "yellow", "purple", "orange", "teal", "magenta", "light_grey", "default"],
+                choices=["blue", "red", "green", "yellow", "purple", "orange", "teal", "magenta", "light_grey",
+                         "default"],
                 type=OptionType.string
+            ),
+            Option(
+                name="signature",
+                description="Enable or disable the signature for the post",
+                required=True,
+                type=OptionType.boolean
             ),
             Option(
                 name="image_url",
@@ -58,6 +68,7 @@ def setup_slash_commands_push(bot, channels_config, roles_config):
             inter: disnake.ApplicationCommandInteraction,
             channel: str,
             color: str,
+            signature: bool,
             image_url: str = None,
             image_file: disnake.Attachment = None
     ):
@@ -96,6 +107,7 @@ def setup_slash_commands_push(bot, channels_config, roles_config):
         command_data[inter.id] = {
             "channel": channel,
             "color": color,
+            "signature": signature,
             "image_url": file_url,
             "channels_config": channels_config
         }
@@ -122,6 +134,7 @@ def setup_slash_commands_push(bot, channels_config, roles_config):
 
         channel = data["channel"]
         color_name = data["color"]
+        signature_enabled = data["signature"]
         image_url = data["image_url"]
         channels_config = data["channels_config"]
 
@@ -149,10 +162,13 @@ def setup_slash_commands_push(bot, channels_config, roles_config):
             description=description,
             color=color_obj
         )
-        embed.set_footer(
-            text=f"{inter.author.display_name} | OmniCorp © 2025",
-            icon_url=inter.author.avatar.url if inter.author.avatar else inter.author.default_avatar.url
-        )
+
+        if signature_enabled:
+            embed.set_footer(
+                text=f"{inter.author.display_name} | OmniCorp © 2025",
+                icon_url=inter.author.avatar.url if inter.author.avatar else inter.author.default_avatar.url
+            )
+
         if image_url:
             try:
                 embed.set_image(url=image_url)

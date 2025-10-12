@@ -42,6 +42,8 @@ def init_db():
             log_message_id TEXT,
             status TEXT NOT NULL,
             created_at TEXT NOT NULL,
+            ticket_type TEXT,
+            offender_identifier TEXT,
             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
         )''')
         cursor.execute('''
@@ -108,6 +110,14 @@ def create_user(discord_id=None, mindustry_id=None):
             conn.commit()
             logger.info(f"Created new user: discord_id={discord_id}, mindustry_id={mindustry_id}")
             return cursor.lastrowid
+
+
+def resolve_user_ids(platform, main_user_id, performer_id):
+    """Creates user entries if they don't exist and returns their internal IDs."""
+    user_params = {'discord_id': main_user_id} if platform == 'discord' else {'mindustry_id': main_user_id}
+    main_user_internal_id = create_user(**user_params)
+    performer_internal_id = create_user(discord_id=performer_id)
+    return main_user_internal_id, performer_internal_id
 
 
 def _add_action(user_id, performed_by_id, action_type, ticket_id=None, role=None, reason=None, duration_seconds=None,
@@ -273,6 +283,7 @@ def get_full_user_data(platform, platform_id):
 
     return result
 
+
 def get_info_for_all_active_punishments(user_internal_id):
     if not user_internal_id:
         return []
@@ -286,6 +297,42 @@ def get_info_for_all_active_punishments(user_internal_id):
                  AND ua.is_active = 1
                ORDER BY ua.time DESC""",
             (user_internal_id,)
+        )
+        results = [dict(row) for row in cursor.fetchall()]
+        return results
+
+
+def get_info_for_active_discord_complaints(user_internal_id):
+    if not user_internal_id:
+        return []
+    with db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """SELECT ua.action_type, t.log_message_id, t.channel_id
+               FROM user_actions AS ua
+               INNER JOIN tickets AS t ON ua.ticket_id = t.id
+               WHERE ua.user_id = ? 
+                 AND ua.is_active = 1
+                 AND t.ticket_type = 'Discord-Complaint'
+               ORDER BY ua.time DESC""",
+            (user_internal_id,)
+        )
+        results = [dict(row) for row in cursor.fetchall()]
+        return results
+
+
+def find_mindustry_complaints_by_nickname(nickname):
+    if not nickname:
+        return []
+    with db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """SELECT log_message_id FROM tickets
+               WHERE ticket_type = 'Mindustry-Complaint'
+                 AND offender_identifier = ?
+                 AND status = 'CLOSED'
+                 AND log_message_id IS NOT NULL""",
+            (nickname,)
         )
         results = [dict(row) for row in cursor.fetchall()]
         return results

@@ -1,57 +1,36 @@
 from datetime import datetime, timedelta
 import pytz
-from .core import _add_action, create_user
+from .core import _add_action, resolve_user_ids
 
 
-def _resolve_user_ids(platform, main_user_id, performer_id):
-    user_params = {'discord_id': main_user_id} if platform == 'discord' else {'mindustry_id': main_user_id}
-    main_user_internal_id = create_user(**user_params)
-    performer_internal_id = create_user(discord_id=performer_id)
-    return main_user_internal_id, performer_internal_id
+def _add_role_change(platform, role_changed_by_id, main_user_id, role, action_type, reason=None, duration_days=None):
+    """Generic function for promotions and demotions."""
+    main_user_internal_id, performer_internal_id = resolve_user_ids(platform, main_user_id, role_changed_by_id)
+    gmt = pytz.timezone('GMT')
+    expires_at = None
+    duration_seconds = None
+    if duration_days:
+        duration_seconds = duration_days * 86400
+        end_time = datetime.now(gmt) + timedelta(days=duration_days)
+        expires_at = end_time.strftime('%Y-%m-%d %H:%M:%S')
+
+    _add_action(
+        user_id=main_user_internal_id,
+        performed_by_id=performer_internal_id,
+        action_type=action_type,
+        role=role,
+        reason=reason,
+        duration_seconds=duration_seconds,
+        expires_at=expires_at
+    )
 
 
 def promotion(platform, role_changed_by_id, main_user_id, role, reason=None, duration_days=None):
-    main_user_internal_id, performer_internal_id = _resolve_user_ids(platform, main_user_id, role_changed_by_id)
-
-    gmt = pytz.timezone('GMT')
-    expires_at = None
-    duration_seconds = None
-    if duration_days:
-        duration_seconds = duration_days * 86400
-        end_time = datetime.now(gmt) + timedelta(days=duration_days)
-        expires_at = end_time.strftime('%Y-%m-%d %H:%M:%S')
-
-    _add_action(
-        user_id=main_user_internal_id,
-        performed_by_id=performer_internal_id,
-        action_type="promotion",
-        role=role,
-        reason=reason,
-        duration_seconds=duration_seconds,
-        expires_at=expires_at
-    )
+    _add_role_change(platform, role_changed_by_id, main_user_id, role, "promotion", reason, duration_days)
 
 
 def demotion(platform, role_changed_by_id, main_user_id, role, reason=None, duration_days=None):
-    main_user_internal_id, performer_internal_id = _resolve_user_ids(platform, main_user_id, role_changed_by_id)
-
-    gmt = pytz.timezone('GMT')
-    expires_at = None
-    duration_seconds = None
-    if duration_days:
-        duration_seconds = duration_days * 86400
-        end_time = datetime.now(gmt) + timedelta(days=duration_days)
-        expires_at = end_time.strftime('%Y-%m-%d %H:%M:%S')
-
-    _add_action(
-        user_id=main_user_internal_id,
-        performed_by_id=performer_internal_id,
-        action_type="demotion",
-        role=role,
-        reason=reason,
-        duration_seconds=duration_seconds,
-        expires_at=expires_at
-    )
+    _add_role_change(platform, role_changed_by_id, main_user_id, role, "demotion", reason, duration_days)
 
 
 def set_return_date_to_position(platform, main_user_id, performed_by_id, role, reason, days_to_add):

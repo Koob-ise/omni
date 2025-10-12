@@ -6,6 +6,7 @@ from configs.feedback_config import TYPE_OPTIONS_RU, TYPE_OPTIONS, PLATFORM_OPTI
     MODAL_CONFIGS_RU, MODAL_CONFIGS, TEXTS, TICKET_COLORS
 from .ticket_utils import create_ticket_channel
 import os
+import re
 
 log = logging.getLogger(__name__)
 
@@ -105,7 +106,6 @@ class FeedbackView(ui.View):
             await interaction.response.send_message(texts["errors"]["select_both"], ephemeral=True)
             return
 
-
         if time.time() - state.get("timestamp", 0) > 1800:
             await interaction.response.send_message(texts["errors"]["expired"], ephemeral=True)
             if state_key in self.user_states:
@@ -155,12 +155,37 @@ class FeedbackView(ui.View):
 
                     if self.ticket_type == "complaint" and self.platform == "discord":
                         offender_tag = modal_interaction.text_values.get("offender")
-                        if not offender_tag or offender_tag.strip() == "":
+                        if not offender_tag or not offender_tag.strip():
                             await modal_interaction.followup.send(texts_utils["errors"]["missing_tag"], ephemeral=True)
                             return
                         if str(modal_interaction.author.id) in offender_tag:
-                            await modal_interaction.followup.send("You cannot report yourself.", ephemeral=True)
+                            error_msg = "Вы не можете пожаловаться на самого себя." if lang == "ru" else "You cannot report yourself."
+                            await modal_interaction.followup.send(error_msg, ephemeral=True)
                             return
+
+                        # --- НОВЫЙ БЛОК ПРОВЕРКИ ---
+                        clean_tag = offender_tag.strip()
+                        guild = modal_interaction.guild
+                        offender = None
+
+                        match = re.search(r'\d{17,}', clean_tag)
+                        if match:
+                            try:
+                                offender_id = int(match.group(0))
+                                offender = guild.get_member(offender_id) or await guild.fetch_member(offender_id)
+                            except (ValueError, disnake.NotFound):
+                                pass
+
+                        if not offender:
+                            offender = guild.get_member_named(clean_tag)
+
+                        if not offender:
+                            await modal_interaction.followup.send(
+                                texts_utils["errors"]["member_not_found"].format(tag=clean_tag),
+                                ephemeral=True
+                            )
+                            return
+                        # --- КОНЕЦ НОВОГО БЛОКА ---
 
                     channel = await create_ticket_channel(
                         modal_interaction, title_for_ticket, selected_platform,

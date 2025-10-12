@@ -64,7 +64,9 @@ MODAL_CONFIGS = {
             {"label": "Punishment reason", "custom_id": "reason", "style": TextInputStyle.short, "max_length": 500},
             {"label": "Punishment date & time (GMT/Timezone)", "custom_id": "punishment_datetime", "style": TextInputStyle.short, "max_length": 50},
             {"label": "Description", "custom_id": "desc", "style": TextInputStyle.paragraph, "max_length": 4000},
-            {"label": "Your game username and server", "custom_id": "username", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 300}
+            # --- ИЗМЕНЕННЫЙ БЛОК ---
+            {"label": "Your game username", "custom_id": "username", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 200},
+            {"label": "Server", "custom_id": "server", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 100}
         ]
     },
     "staff": {
@@ -96,7 +98,9 @@ MODAL_CONFIGS_RU = {
             {"label": "Причина наказания", "custom_id": "reason", "style": TextInputStyle.short, "max_length": 500},
             {"label": "Дата и время наказания (GMT/Часовой пояс)", "custom_id": "punishment_datetime", "style": TextInputStyle.short, "max_length": 50},
             {"label": "Описание", "custom_id": "desc", "style": TextInputStyle.paragraph, "max_length": 4000},
-            {"label": "Ваш игровой ник и сервер", "custom_id": "username", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 300}
+            # --- ИЗМЕНЕННЫЙ БЛОК ---
+            {"label": "Ваш игровой ник", "custom_id": "username", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 200},
+            {"label": "Сервер", "custom_id": "server", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 100}
         ]
     },
     "staff": {

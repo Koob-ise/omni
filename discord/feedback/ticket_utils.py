@@ -4,7 +4,10 @@ import logging
 from configs.feedback_config import config, TEXTS, TICKET_COLORS
 import re
 from database.tickets import log_ticket_open
-from database.core import get_user_internal_id, get_info_for_all_active_punishments
+from database.core import (
+    get_user_internal_id, get_info_for_all_active_punishments, create_user,
+    get_info_for_active_discord_complaints, find_mindustry_complaints_by_nickname
+)
 
 log = logging.getLogger(__name__)
 
@@ -36,35 +39,46 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
         }
         log.debug(f"Initial overwrites: {overwrites.keys()}")
 
-        if title == "Complaint" and platform.lower() == "discord":
-            offender_tag = form_data.get("offender")
-            if offender_tag:
-                log.info(f"Discord complaint detected. Attempting to add offender: {offender_tag}")
-                offender = None
-                clean_tag = offender_tag.strip()
+        offender_identifier = None
 
-                match = re.search(r'\d{17,}', clean_tag)
-                if match:
-                    try:
-                        offender_id = int(match.group(0))
-                        offender = interaction.guild.get_member(offender_id)
-                        if not offender:
-                            offender = await interaction.guild.fetch_member(offender_id)
-                        log.info(f"Found offender by ID: {offender.display_name}")
-                    except (ValueError, disnake.NotFound):
-                        log.warning(f"Could not find a member with ID {match.group(0)}, proceeding to search by name.")
-                    except Exception as e:
-                        log.error(f"Error fetching member by ID {match.group(0)}: {e}")
+        if title == "Complaint":
+            if platform.lower() == "discord":
+                offender_tag = form_data.get("offender")
+                if offender_tag and offender_tag.strip():
+                    log.info(f"Discord complaint detected. Attempting to add offender: {offender_tag}")
+                    offender = None
+                    clean_tag = offender_tag.strip()
 
-                if not offender:
-                    log.info(f"Could not find offender by ID, trying by name: {clean_tag}")
-                    offender = interaction.guild.get_member_named(clean_tag)
+                    match = re.search(r'\d{17,}', clean_tag)
+                    if match:
+                        try:
+                            offender_id = int(match.group(0))
+                            offender = interaction.guild.get_member(offender_id)
+                            if not offender:
+                                offender = await interaction.guild.fetch_member(offender_id)
+                            log.info(f"Found offender by ID: {offender.display_name}")
+                        except (ValueError, disnake.NotFound):
+                            log.warning(
+                                f"Could not find a member with ID {match.group(0)}, proceeding to search by name.")
+                        except Exception as e:
+                            log.error(f"Error fetching member by ID {match.group(0)}: {e}")
 
-                if offender:
-                    log.info(f"Offender {offender.display_name} found. Adding to channel overwrites.")
-                    overwrites[offender] = disnake.PermissionOverwrite(read_messages=True, send_messages=True)
-                else:
-                    log.warning(f"Could not find offender on the server using the provided tag: {clean_tag}")
+                    if not offender:
+                        log.info(f"Could not find offender by ID, trying by name: {clean_tag}")
+                        offender = interaction.guild.get_member_named(clean_tag)
+
+                    if offender:
+                        log.info(f"Offender {offender.display_name} found. Adding to channel overwrites.")
+                        overwrites[offender] = disnake.PermissionOverwrite(read_messages=True, send_messages=True)
+                        offender_identifier = str(offender.id)
+                    else:
+                        log.warning(f"Could not find offender on the server using the provided tag: {clean_tag}")
+
+            elif platform.lower() == "mindustry":
+                raw_nickname = form_data.get("offender_game") or form_data.get("offender")
+                if raw_nickname and raw_nickname.strip():
+                    offender_identifier = raw_nickname.strip()
+                    log.info(f"Mindustry complaint detected. Storing offender identifier: {offender_identifier}")
 
         ticket_type = title
         channel_key = f"{platform.capitalize()}-{ticket_type}"
@@ -126,48 +140,62 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
         embed = Embed(title=title_text, color=color)
 
         if title == "Appeal":
-            log.info(f"Обнаружен тикет-апелляция от пользователя {interaction.author.id}.")
-            user_internal_id = get_user_internal_id(platform, interaction.author.id)
+            log.info(f"Appeal ticket detected from user {interaction.author.id} on platform {platform}.")
 
-            if user_internal_id:
-                active_punishments = get_info_for_all_active_punishments(user_internal_id)
+            if platform.lower() == "discord":
+                user_internal_id = get_user_internal_id("discord", interaction.author.id)
+                if user_internal_id:
+                    log.info(f"Searching for active punishments from Discord complaints for user {user_internal_id}.")
+                    active_punishments = get_info_for_active_discord_complaints(user_internal_id)
 
-                if active_punishments:
-                    log.info(
-                        f"Найдено {len(active_punishments)} активных наказаний для пользователя {user_internal_id}.")
-                    server_id = interaction.guild.id
-                    closed_tickets_channel_id = config.channels["channels"]["📌│closed-tickets"]["id"]
-
-                    punishment_links = []
-                    for punishment in active_punishments:
-                        action_type = punishment['action_type'].capitalize()
-                        log_message_id = punishment.get('log_message_id')
-                        channel_id = punishment.get('channel_id')
-
-                        link = ""
-                        link_text = ""
-
-                        if log_message_id:
+                    if active_punishments:
+                        log.info(f"Found {len(active_punishments)} active punishments for user {user_internal_id}.")
+                        server_id = interaction.guild.id
+                        closed_tickets_channel_id = config.channels["channels"]["📌│closed-tickets"]["id"]
+                        punishment_links = []
+                        for punishment in active_punishments:
+                            action_type = punishment['action_type'].capitalize()
+                            log_message_id = punishment.get('log_message_id')
                             link = f"https://discord.com/channels/{server_id}/{closed_tickets_channel_id}/{log_message_id}"
-                            link_text = "Посмотреть лог"
-                        elif channel_id:
-                            link = f"https://discord.com/channels/{server_id}/{channel_id}"
-                            link_text = "Перейти к тикету"
-                        else:
-                            continue
+                            punishment_links.append(f"**{action_type}**: [Посмотреть лог]({link})")
 
-                        punishment_links.append(f"**{action_type}**: [{link_text}]({link})")
-
-                    if punishment_links:
-                        embed.add_field(
-                            name="Найденные активные наказания",
-                            value="\n".join(punishment_links),
-                            inline=False
-                        )
+                        if punishment_links:
+                            embed.add_field(
+                                name="Найденные активные наказания",
+                                value="\n".join(punishment_links),
+                                inline=False
+                            )
                 else:
-                    log.warning(f"Активных наказаний, связанных с тикетами, для {user_internal_id} не найдено.")
-            else:
-                log.warning(f"Не удалось найти внутреннего ID для пользователя {interaction.author.id}.")
+                    log.warning(f"Could not find internal ID for user {interaction.author.id}.")
+
+            else:  # Логика для Mindustry и других платформ
+                appellant_nick = form_data.get("username")
+                if appellant_nick:
+                    log.info(f"Searching for Mindustry complaints against '{appellant_nick}'.")
+                    found_complaints = find_mindustry_complaints_by_nickname(appellant_nick)
+
+                    if found_complaints:
+                        log.info(f"Found {len(found_complaints)} related Mindustry complaints.")
+                        server_id = interaction.guild.id
+                        closed_tickets_channel_id = config.channels["channels"]["📌│closed-tickets"]["id"]
+
+                        complaint_links = []
+                        for i, complaint in enumerate(found_complaints):
+                            log_message_id = complaint.get('log_message_id')
+                            if log_message_id:
+                                link = f"https://discord.com/channels/{server_id}/{closed_tickets_channel_id}/{log_message_id}"
+                                complaint_links.append(f"**Жалоба #{i + 1}**: [Посмотреть лог]({link})")
+
+                        if complaint_links:
+                            embed.add_field(
+                                name="Найденные жалобы Mindustry",
+                                value="\n".join(complaint_links),
+                                inline=False
+                            )
+                    else:
+                        log.warning(f"No closed Mindustry complaints found for offender '{appellant_nick}'.")
+                else:
+                    log.warning("Appellant's game nick not provided in the appeal form.")
 
         embed.add_field(name="Platform", value=platform.capitalize(), inline=False)
         footer_text = f"ticket_type:{ticket_type};lang:{lang};opener:{interaction.author.id}"
@@ -201,7 +229,13 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
         await webhook.send(embed=embed, view=close_view)
         log.info("Ticket message sent to channel via webhook")
 
-        log_ticket_open(interaction.author.id, channel.id)
+        formatted_ticket_type = f"{platform.capitalize()}-{title}"
+        log_ticket_open(
+            opener_discord_id=interaction.author.id,
+            channel_id=channel.id,
+            ticket_type=formatted_ticket_type,
+            offender_identifier=offender_identifier
+        )
 
         await webhook.delete()
         log.info("Webhook deleted")
