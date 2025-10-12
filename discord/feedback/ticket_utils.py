@@ -168,7 +168,7 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
                 else:
                     log.warning(f"Could not find internal ID for user {interaction.author.id}.")
 
-            else:  # Логика для Mindustry и других платформ
+            else:
                 appellant_nick = form_data.get("username")
                 if appellant_nick:
                     log.info(f"Searching for Mindustry complaints against '{appellant_nick}'.")

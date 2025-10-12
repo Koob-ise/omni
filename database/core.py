@@ -113,7 +113,6 @@ def create_user(discord_id=None, mindustry_id=None):
 
 
 def resolve_user_ids(platform, main_user_id, performer_id):
-    """Creates user entries if they don't exist and returns their internal IDs."""
     user_params = {'discord_id': main_user_id} if platform == 'discord' else {'mindustry_id': main_user_id}
     main_user_internal_id = create_user(**user_params)
     performer_internal_id = create_user(discord_id=performer_id)

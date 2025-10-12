@@ -163,7 +163,6 @@ class FeedbackView(ui.View):
                             await modal_interaction.followup.send(error_msg, ephemeral=True)
                             return
 
-                        # --- НОВЫЙ БЛОК ПРОВЕРКИ ---
                         clean_tag = offender_tag.strip()
                         guild = modal_interaction.guild
                         offender = None
@@ -185,7 +184,6 @@ class FeedbackView(ui.View):
                                 ephemeral=True
                             )
                             return
-                        # --- КОНЕЦ НОВОГО БЛОКА ---
 
                     channel = await create_ticket_channel(
                         modal_interaction, title_for_ticket, selected_platform,

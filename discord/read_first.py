@@ -45,7 +45,7 @@ class LanguageSelect(ui.Select):
         both_role = guild.get_role(self.roles_config["language_roles"]["bilingual"])
 
         try:
-            create_user('discord', str(member.id))
+            create_user(str(member.id))
             for role in [ru_role, en_role, both_role]:
                 if role and role in member.roles:
                     await member.remove_roles(role)

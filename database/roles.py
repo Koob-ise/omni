@@ -4,7 +4,6 @@ from .core import _add_action, resolve_user_ids
 
 
 def _add_role_change(platform, role_changed_by_id, main_user_id, role, action_type, reason=None, duration_days=None):
-    """Generic function for promotions and demotions."""
     main_user_internal_id, performer_internal_id = resolve_user_ids(platform, main_user_id, role_changed_by_id)
     gmt = pytz.timezone('GMT')
     expires_at = None

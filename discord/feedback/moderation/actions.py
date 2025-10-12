@@ -3,7 +3,7 @@ import logging
 from datetime import timedelta
 
 from database.punishments import add_punishment, revoke_punishment
-from database.core import create_user, count_active_warns, deactivate_all_warns, get_user_internal_id
+from database.core import create_user, count_active_warns, get_user_internal_id
 from .constants import (
     DEFAULT_BAN_SECONDS, DEFAULT_MUTE_SECONDS, DEFAULT_VOICE_MUTE_SECONDS,
     DEFAULT_BLACKLIST_SECONDS, DEFAULT_WARN_DURATION_SECONDS, WARNS_UNTIL_ACTION,
@@ -22,18 +22,20 @@ async def apply_punishment(inter, offender, action, duration_delta, reason, dele
         log.info(f"Moderator {inter.author.display_name} deleted {deleted_count} messages for {offender.display_name}.")
 
     try:
-        # Обработка 'warn' отдельно из-за сложной логики авто-наказания
         if action == "warn":
             duration_seconds = int(duration_delta.total_seconds()) if duration_delta else DEFAULT_WARN_DURATION_SECONDS
             user_internal_id = get_user_internal_id("discord", offender.id) or create_user(discord_id=offender.id)
-            current_warns = count_active_warns(user_internal_id)
 
             add_punishment("discord", offender.id, inter.author.id, reason, "warn", duration_seconds,
                            ticket_id=ticket_db_id)
 
-            if (current_warns + 1) >= WARNS_UNTIL_ACTION:
-                deactivate_all_warns(user_internal_id)
-                auto_action_reason = f"Автоматическое наказание ({ACTION_ON_WARN_LIMIT}) за {WARNS_UNTIL_ACTION} предупреждений."
+            current_warns = count_active_warns(user_internal_id)
+
+            if current_warns > 0 and current_warns % WARNS_UNTIL_ACTION == 0:
+                multiplier = current_warns // WARNS_UNTIL_ACTION
+                auto_action_duration_seconds = ACTION_ON_WARN_DURATION_SECONDS * multiplier
+
+                auto_action_reason = f"Автоматическое наказание (уровень {multiplier}) за достижение {current_warns} предупреждений."
                 auto_action = ACTION_ON_WARN_LIMIT
                 auto_action_role = inter.guild.get_role(moderation_roles.get(auto_action))
 
@@ -41,13 +43,12 @@ async def apply_punishment(inter, offender, action, duration_delta, reason, dele
                     await offender.add_roles(auto_action_role, reason=auto_action_reason)
 
                 add_punishment("discord", offender.id, inter.author.id, auto_action_reason, auto_action,
-                               ACTION_ON_WARN_DURATION_SECONDS, ticket_id=ticket_db_id)
+                               auto_action_duration_seconds, ticket_id=ticket_db_id)
 
                 return 'SUCCESS_WARN_AND_PUNISH', deleted_count
             else:
                 return 'SUCCESS', deleted_count
 
-        # Обработка всех остальных действий
         role_id = moderation_roles.get(action)
         role = inter.guild.get_role(role_id) if role_id else None
         status_db = 'FAILED_DB'
@@ -58,7 +59,6 @@ async def apply_punishment(inter, offender, action, duration_delta, reason, dele
         }
         duration_seconds = int(duration_delta.total_seconds()) if duration_delta else default_durations.get(action)
 
-        # Применение эффектов в Discord и запись в БД
         if action == "kick":
             await offender.kick(reason=reason)
             status_db = add_punishment("discord", offender.id, inter.author.id, reason, "kick", ticket_id=ticket_db_id)
@@ -66,7 +66,7 @@ async def apply_punishment(inter, offender, action, duration_delta, reason, dele
             await inter.guild.ban(offender, reason=reason, delete_message_days=0)
             status_db = add_punishment("discord", offender.id, inter.author.id, reason, "blacklist", duration_seconds,
                                        ticket_id=ticket_db_id)
-        else:  # ban, mute, voice-mute
+        else:
             if role:
                 await offender.add_roles(role, reason=reason)
             status_db = add_punishment("discord", offender.id, inter.author.id, reason, action, duration_seconds,
@@ -93,13 +93,12 @@ async def apply_revocation(inter, user_to_revoke, action, reason, moderation_rol
         if not success_db:
             return "NO_PUNISHMENT"
 
-        # Применение эффектов в Discord
         if action == "blacklist":
             try:
                 await inter.guild.unban(user_to_revoke, reason=f"Revoked by {inter.author.display_name}: {reason}")
             except disnake.NotFound:
                 log.warning(f"Attempted to unban user {user_to_revoke.id} who was not banned.")
-        elif action != "warn":  # Для ban, mute, voice-mute нужно снять роль
+        elif action != "warn":
             if isinstance(user_to_revoke, disnake.Member):
                 role_id = moderation_roles.get(action)
                 if role_id:
