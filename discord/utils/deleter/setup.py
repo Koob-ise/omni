@@ -1,26 +1,43 @@
 import disnake
 from .permissions import PermissionChecker
 from .commands import DeletionCommands
-from .button_handler import ButtonHandler
 from .thread_commands import ThreadCommands
 from .thread_manager import ThreadManager
+from .button_handler import ButtonHandler
 
 
-def setup_deletion_commands(bot: disnake.ext.commands.Bot, roles_config: dict, channels_config: dict):
-    permission_checker = PermissionChecker(roles_config, channels_config)
+def setup_deleter(bot: disnake.ext.commands.Bot, roles_config: dict, channels_config: dict):
+    prohibited_channels = ["??closed-tickets"]
 
-    DeletionCommands(bot, permission_checker, channels_config)
-    ButtonHandler(bot, permission_checker)
-    ThreadCommands(bot, permission_checker)
+    permission_checker = PermissionChecker(
+        roles_config=roles_config,
+        channels_config=channels_config
+    )
 
-    if not hasattr(bot, 'thread_handlers_registered'):
-        bot.thread_manager = ThreadManager(bot, permission_checker)
+    DeletionCommands(
+        bot=bot,
+        permission_checker=permission_checker,
+        channels_config=channels_config
+    )
 
-        @bot.listen("on_thread_create")
-        async def on_thread_create(thread: disnake.Thread):
-            if isinstance(thread.parent, disnake.ForumChannel):
-                await bot.thread_manager.handle_new_thread(thread)
-            else:
-                await bot.thread_manager.handle_new_thread(thread)
+    ThreadCommands(
+        bot=bot,
+        permission_checker=permission_checker
+    )
 
-        bot.thread_handlers_registered = True
+    thread_manager = ThreadManager(
+        bot=bot,
+        permission_checker=permission_checker,
+        channels_config=channels_config,
+        prohibited_thread_parent_names=prohibited_channels
+    )
+
+
+    bot.thread_manager = thread_manager
+
+    ButtonHandler(
+        bot=bot,
+        permission_checker=permission_checker,
+        channels_config=channels_config,
+        prohibited_thread_parent_names=prohibited_channels
+    )

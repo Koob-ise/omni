@@ -5,14 +5,26 @@ from .confirmation import create_confirmation_view
 
 
 class ThreadManager:
-    def __init__(self, bot: disnake.ext.commands.Bot, permission_checker: PermissionChecker):
+    def __init__(self, bot: disnake.ext.commands.Bot, permission_checker: PermissionChecker, channels_config: dict,
+                 prohibited_thread_parent_names: list):
         self.bot = bot
         self.permission_checker = permission_checker
         self.processed_threads = set()
 
+        self.prohibited_parent_ids = set()
+        if channels_config and prohibited_thread_parent_names:
+            all_channels = channels_config.get("channels", {})
+            for name in prohibited_thread_parent_names:
+                if name in all_channels:
+                    self.prohibited_parent_ids.add(all_channels[name]["id"])
+
     async def handle_new_thread(self, thread: disnake.Thread):
         if thread.id in self.processed_threads:
             return
+
+        if thread.parent_id in self.prohibited_parent_ids:
+            return
+
         self.processed_threads.add(thread.id)
         await self.send_delete_button(thread)
 

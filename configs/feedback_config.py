@@ -130,6 +130,7 @@ TEXTS = {
             "confirm_close": {
                 "confirmation_message": "Are you sure you want to close the ticket?",
                 "cancelled": "Ticket closing cancelled.",
+                "closing_in_progress": "Please wait, the ticket is being closed...",
                 "title": "Confirm Closure",
                 "label": "Confirmation",
                 "placeholder": "Type 'yes' to confirm",
@@ -194,6 +195,7 @@ TEXTS = {
             "confirm_close": {
                 "confirmation_message": "Вы уверены, что хотите закрыть тикет?",
                 "cancelled": "Закрытие тикета отменено.",
+                "closing_in_progress": "Подождите, тикет закрывается...",
                 "title": "Подтверждение закрытия",
                 "label": "Подтверждение",
                 "placeholder": "Введите 'да' для подтверждения",

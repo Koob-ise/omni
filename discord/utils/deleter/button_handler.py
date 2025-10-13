@@ -5,32 +5,45 @@ from .confirmation import deletion_data
 
 
 class ButtonHandler:
-    def __init__(self, bot, permission_checker):
+    def __init__(self, bot, permission_checker, channels_config: dict, prohibited_thread_parent_names: list):
         self.bot = bot
         self.permission_checker = permission_checker
+
+        self.prohibited_parent_ids = set()
+        if channels_config and prohibited_thread_parent_names:
+            all_channels = channels_config.get("channels", {})
+            for name in prohibited_thread_parent_names:
+                if name in all_channels:
+                    self.prohibited_parent_ids.add(all_channels[name]["id"])
+
         bot.listen("on_button_click")(self.on_button_click)
 
     async def _handle_delete_single(self, inter, data):
         message = data["message"]
         try:
             await message.delete()
-            await inter.edit_original_response(content="✅ Message successfully deleted!", view=None)
+            await inter.edit_original_response(content="✅ Сообщение успешно удалено!", view=None)
         except disnake.NotFound:
-            await inter.edit_original_response(content="✅ Message was already deleted.", view=None)
+            await inter.edit_original_response(content="✅ Сообщение уже было удалено.", view=None)
 
     async def _handle_delete_embed(self, inter, data):
         message = data["message"]
         try:
             await message.edit(embeds=[])
-            await inter.edit_original_response(content="✅ Embed successfully removed!", view=None)
+            await inter.edit_original_response(content="✅ Вложения успешно удалены!", view=None)
         except disnake.NotFound:
-            await inter.edit_original_response(content="✅ Message was already deleted.", view=None)
+            await inter.edit_original_response(content="✅ Сообщение уже было удалено.", view=None)
 
     async def _handle_delete_thread(self, inter, data):
         thread = data["thread"]
+
+        if thread.parent_id in self.prohibited_parent_ids:
+            await inter.edit_original_response(content="❌ Удаление веток в этом канале запрещено.", view=None)
+            return
+
         if not (self.permission_checker.has_thread_delete_permission(
                 inter.author) or thread.owner_id == inter.author.id):
-            await inter.edit_original_response(content="❌ You no longer have permission to delete this thread.",
+            await inter.edit_original_response(content="❌ У вас больше нет прав на удаление этой ветки.",
                                                view=None)
             return
 
@@ -44,13 +57,13 @@ class ButtonHandler:
 
         try:
             await thread.delete()
-            await inter.edit_original_response(content="✅ Thread successfully deleted!", view=None)
+            await inter.edit_original_response(content="✅ Ветка успешно удалена!", view=None)
         except disnake.NotFound:
-            await inter.edit_original_response(content="✅ Thread was already deleted.", view=None)
+            await inter.edit_original_response(content="✅ Ветка уже была удалена.", view=None)
 
     async def _handle_clear(self, inter, data):
         if not self.permission_checker.has_clear_permission(inter.author):
-            await inter.edit_original_response(content="❌ You no longer have permission to clear messages.", view=None)
+            await inter.edit_original_response(content="❌ У вас больше нет прав на удаление сообщений.", view=None)
             return
 
         channel = data["channel"]
@@ -81,15 +94,15 @@ class ButtonHandler:
                         await channel.delete_messages(messages_to_delete)
                         deleted_count = len(messages_to_delete)
                     except disnake.HTTPException as e:
-                        await inter.edit_original_response(content=f"❌ An error occurred during deletion: {e}",
+                        await inter.edit_original_response(content=f"❌ Произошла ошибка при удалении: {e}",
                                                            view=None)
                         return
 
-        await inter.edit_original_response(content=f"✅ Successfully deleted {deleted_count} messages!", view=None)
+        await inter.edit_original_response(content=f"✅ Успешно удалено {deleted_count} сообщений!", view=None)
 
     async def _handle_clear_after(self, inter, data):
         if not self.permission_checker.has_clear_permission(inter.author):
-            await inter.edit_original_response(content="❌ You no longer have permission to clear messages.", view=None)
+            await inter.edit_original_response(content="❌ У вас больше нет прав на удаление сообщений.", view=None)
             return
 
         channel = data["channel"]
@@ -104,7 +117,7 @@ class ButtonHandler:
         except disnake.NotFound:
             pass
 
-        await inter.edit_original_response(content=f"✅ Successfully deleted {deleted_count} messages!", view=None)
+        await inter.edit_original_response(content=f"✅ Успешно удалено {deleted_count} сообщений!", view=None)
 
     async def on_button_click(self, inter: disnake.MessageInteraction):
         custom_id = inter.component.custom_id
@@ -131,7 +144,7 @@ class ButtonHandler:
 
         try:
             if action == "cancel":
-                await inter.response.edit_message(content="❌ Action cancelled.", view=None)
+                await inter.response.edit_message(content="❌ Действие отменено.", view=None)
                 return
 
             await inter.response.defer()
@@ -148,11 +161,11 @@ class ButtonHandler:
             if handler:
                 await handler(inter, data)
             else:
-                await inter.edit_original_response(content="❌ Unknown action type.", view=None)
+                await inter.edit_original_response(content="❌ Неизвестный тип действия.", view=None)
 
         except disnake.HTTPException as e:
             try:
-                await inter.edit_original_response(content=f"❌ An error occurred: {e}", view=None)
+                await inter.edit_original_response(content=f"❌ Произошла ошибка: {e}", view=None)
             except disnake.HTTPException:
                 pass
         finally:

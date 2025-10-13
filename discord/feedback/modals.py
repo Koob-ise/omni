@@ -38,7 +38,11 @@ class ConfirmCloseModal(ui.View):
 
     @ui.button(label="Close", style=disnake.ButtonStyle.danger, custom_id="close_ticket")
     async def close_button(self, button: ui.Button, interaction: disnake.MessageInteraction):
-        await interaction.response.defer(ephemeral=True)
+        self.close_button.disabled = True
+        self.cancel_button.disabled = True
+
+        closing_message = self.texts.get("closing_in_progress", "Подождите, тикет закрывается...")
+        await interaction.response.edit_message(content=closing_message, view=self)
 
         closed_by = interaction.user
 
@@ -52,6 +56,7 @@ class ConfirmCloseModal(ui.View):
                 log_ticket_close(self.channel.id, message_link)
             except Exception as e:
                 log.error(f"DB Error on ticket close: {e}")
+
 
         await interaction.followup.send(self.texts["success"], ephemeral=True)
 
