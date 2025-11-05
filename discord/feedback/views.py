@@ -159,7 +159,7 @@ class FeedbackView(ui.View):
                             await modal_interaction.followup.send(texts_utils["errors"]["missing_tag"], ephemeral=True)
                             return
                         if str(modal_interaction.author.id) in offender_tag:
-                            error_msg = "Вы не можете пожаловаться на самого себя." if lang == "ru" else "You cannot report yourself."
+                            error_msg = "You cannot report yourself."
                             await modal_interaction.followup.send(error_msg, ephemeral=True)
                             return
 

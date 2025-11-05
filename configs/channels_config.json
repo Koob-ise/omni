@@ -102,6 +102,13 @@
         "name": "📌 Punishments Bot",
         "avatar": "../configs/images/image.jpg"
       }
+    },
+    "🤖│bot": {
+      "id": 1435495059213778954,
+      "webhook": {
+        "name": "🤖 Bot",
+        "avatar": "../configs/images/image.jpg"
+      }
     }
   },
   "voice_channels": {

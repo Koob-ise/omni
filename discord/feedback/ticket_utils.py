@@ -157,11 +157,11 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
                             action_type = punishment['action_type'].capitalize()
                             log_message_id = punishment.get('log_message_id')
                             link = f"https://discord.com/channels/{server_id}/{closed_tickets_channel_id}/{log_message_id}"
-                            punishment_links.append(f"**{action_type}**: [Посмотреть лог]({link})")
+                            punishment_links.append(f"**{action_type}**: [View Log]({link})")
 
                         if punishment_links:
                             embed.add_field(
-                                name="Найденные активные наказания",
+                                name="Found Active Punishments",
                                 value="\n".join(punishment_links),
                                 inline=False
                             )
@@ -184,11 +184,11 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
                             log_message_id = complaint.get('log_message_id')
                             if log_message_id:
                                 link = f"https://discord.com/channels/{server_id}/{closed_tickets_channel_id}/{log_message_id}"
-                                complaint_links.append(f"**Жалоба #{i + 1}**: [Посмотреть лог]({link})")
+                                complaint_links.append(f"**Complaint #{i + 1}**: [View Log]({link})")
 
                         if complaint_links:
                             embed.add_field(
-                                name="Найденные жалобы Mindustry",
+                                name="Found Mindustry Complaints",
                                 value="\n".join(complaint_links),
                                 inline=False
                             )

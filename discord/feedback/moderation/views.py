@@ -21,7 +21,8 @@ class ConfirmPunishmentView(View):
         self.confirmed = True
         button.disabled = True
         self.children[1].disabled = True
-        await inter.response.edit_message(content="? Punishment confirmed", view=self)
+        embed = disnake.Embed(description="? Punishment confirmed.", color=disnake.Color.green())
+        await inter.response.edit_message(embed=embed, view=None)
         self.stop()
 
     @disnake.ui.button(label="Cancel", style=disnake.ButtonStyle.red)
@@ -31,7 +32,8 @@ class ConfirmPunishmentView(View):
             return
         button.disabled = True
         self.children[0].disabled = True
-        await inter.response.edit_message(content="? Punishment canceled", view=self)
+        embed = disnake.Embed(description="? Punishment canceled.", color=disnake.Color.red())
+        await inter.response.edit_message(embed=embed, view=None)
         self.stop()
 
     def check_control_permission(self, inter):
@@ -63,7 +65,8 @@ class ConfirmRevokeView(View):
         self.confirmed = True
         button.disabled = True
         self.children[1].disabled = True
-        await inter.response.edit_message(content="? Revocation confirmed", view=self)
+        embed = disnake.Embed(description="? Revocation confirmed.", color=disnake.Color.green())
+        await inter.response.edit_message(embed=embed, view=None)
         self.stop()
 
     @disnake.ui.button(label="Cancel", style=disnake.ButtonStyle.red)
@@ -73,7 +76,8 @@ class ConfirmRevokeView(View):
             return
         button.disabled = True
         self.children[0].disabled = True
-        await inter.response.edit_message(content="? Revocation canceled", view=self)
+        embed = disnake.Embed(description="? Revocation canceled.", color=disnake.Color.red())
+        await inter.response.edit_message(embed=embed, view=None)
         self.stop()
 
     def check_control_permission(self, inter):

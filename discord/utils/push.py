@@ -14,6 +14,12 @@ async def get_webhook(channel, webhook_name):
 def setup_slash_commands_push(bot, channels_config, roles_config):
     command_data = {}
 
+    try:
+        BOT_CHANNEL_ID = channels_config["channels"]["🤖│bot"]["id"]
+    except KeyError:
+        print("Error: '🤖│bot' channel not found in channels_config.")
+        BOT_CHANNEL_ID = None
+
     def has_push_permission(member, channel_name):
         for role in member.roles:
             role_id = role.id
@@ -72,12 +78,17 @@ def setup_slash_commands_push(bot, channels_config, roles_config):
             image_url: str = None,
             image_file: disnake.Attachment = None
     ):
+        if BOT_CHANNEL_ID and inter.channel_id != BOT_CHANNEL_ID:
+            return await inter.response.send_message(
+                f"This command can only be used in the <#{BOT_CHANNEL_ID}> channel.",
+                ephemeral=True
+            )
+
         if not has_push_permission(inter.author, channel):
-            await inter.response.send_message(
+            return await inter.response.send_message(
                 "You don't have permission to push messages to this channel.",
                 ephemeral=True
             )
-            return
 
         components = [
             TextInput(

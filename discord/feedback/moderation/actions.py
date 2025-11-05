@@ -21,13 +21,16 @@ async def apply_punishment(inter, offender, action, duration_delta, reason, dele
         deleted_count = await clear_user_messages(inter.channel, offender, delete_days)
         log.info(f"Moderator {inter.author.display_name} deleted {deleted_count} messages for {offender.display_name}.")
 
+    punishment_id = None
+    status_db = 'FAILED'
+
     try:
         if action == "warn":
             duration_seconds = int(duration_delta.total_seconds()) if duration_delta else DEFAULT_WARN_DURATION_SECONDS
             user_internal_id = get_user_internal_id("discord", offender.id) or create_user(discord_id=offender.id)
 
-            add_punishment("discord", offender.id, inter.author.id, reason, "warn", duration_seconds,
-                           ticket_id=ticket_db_id)
+            status_db, punishment_id = add_punishment("discord", offender.id, inter.author.id, reason, "warn", duration_seconds,
+                                                ticket_id=ticket_db_id)
 
             current_warns = count_active_warns(user_internal_id)
 
@@ -35,23 +38,22 @@ async def apply_punishment(inter, offender, action, duration_delta, reason, dele
                 multiplier = current_warns // WARNS_UNTIL_ACTION
                 auto_action_duration_seconds = ACTION_ON_WARN_DURATION_SECONDS * multiplier
 
-                auto_action_reason = f"Автоматическое наказание (уровень {multiplier}) за достижение {current_warns} предупреждений."
+                auto_action_reason = f"Automatic punishment (Level {multiplier}) for reaching {current_warns} warnings."
                 auto_action = ACTION_ON_WARN_LIMIT
                 auto_action_role = inter.guild.get_role(moderation_roles.get(auto_action))
 
                 if auto_action_role:
                     await offender.add_roles(auto_action_role, reason=auto_action_reason)
 
-                add_punishment("discord", offender.id, inter.author.id, auto_action_reason, auto_action,
+                status_db, punishment_id = add_punishment("discord", offender.id, inter.author.id, auto_action_reason, auto_action,
                                auto_action_duration_seconds, ticket_id=ticket_db_id)
 
-                return 'SUCCESS_WARN_AND_PUNISH', deleted_count
+                return 'SUCCESS_WARN_AND_PUNISH', deleted_count, punishment_id
             else:
-                return 'SUCCESS', deleted_count
+                return 'SUCCESS', deleted_count, punishment_id
 
         role_id = moderation_roles.get(action)
         role = inter.guild.get_role(role_id) if role_id else None
-        status_db = 'FAILED_DB'
 
         default_durations = {
             "ban": DEFAULT_BAN_SECONDS, "mute": DEFAULT_MUTE_SECONDS,
@@ -61,27 +63,27 @@ async def apply_punishment(inter, offender, action, duration_delta, reason, dele
 
         if action == "kick":
             await offender.kick(reason=reason)
-            status_db = add_punishment("discord", offender.id, inter.author.id, reason, "kick", ticket_id=ticket_db_id)
+            status_db, punishment_id = add_punishment("discord", offender.id, inter.author.id, reason, "kick", ticket_id=ticket_db_id)
         elif action == "blacklist":
             await inter.guild.ban(offender, reason=reason, delete_message_days=0)
-            status_db = add_punishment("discord", offender.id, inter.author.id, reason, "blacklist", duration_seconds,
+            status_db, punishment_id = add_punishment("discord", offender.id, inter.author.id, reason, "blacklist", duration_seconds,
                                        ticket_id=ticket_db_id)
         else:
             if role:
                 await offender.add_roles(role, reason=reason)
-            status_db = add_punishment("discord", offender.id, inter.author.id, reason, action, duration_seconds,
+            status_db, punishment_id = add_punishment("discord", offender.id, inter.author.id, reason, action, duration_seconds,
                                        ticket_id=ticket_db_id)
 
         if status_db == 'ADDED':
-            return 'SUCCESS', deleted_count
+            return 'SUCCESS', deleted_count, punishment_id
         elif status_db == 'SKIPPED':
-            return 'ALREADY_LONGER', deleted_count
+            return 'ALREADY_LONGER', deleted_count, None
 
-        return 'FAILED', deleted_count
+        return 'FAILED', deleted_count, None
 
     except Exception as e:
         log.error(f"Error applying punishment: {e}", exc_info=True)
-        return 'FAILED', deleted_count
+        return 'FAILED', deleted_count, None
 
 
 async def apply_revocation(inter, user_to_revoke, action, reason, moderation_roles):

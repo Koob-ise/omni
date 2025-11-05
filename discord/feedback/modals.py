@@ -4,7 +4,7 @@ import io
 import logging
 import aiohttp
 from configs.feedback_config import config, TEXTS, TICKET_COLORS
-from database.tickets import log_ticket_close
+from database.tickets import log_ticket_close, get_punishment_log_id_for_ticket
 
 log = logging.getLogger(__name__)
 
@@ -24,12 +24,13 @@ async def get_webhook(channel, webhook_name):
 
 
 class ConfirmCloseModal(ui.View):
-    def __init__(self, channel, opener, ticket_data, lang="en"):
+    def __init__(self, channel, opener, ticket_data, lang="en", ticket_db_id=None):
         super().__init__(timeout=60)
         self.channel = channel
         self.opener = opener
         self.ticket_data = ticket_data
         self.lang = lang
+        self.ticket_db_id = ticket_db_id
         self.texts = TEXTS[lang]["modals"]["confirm_close"]
         self.confirmation_text = self.texts.get(
             "confirmation_message",
@@ -42,23 +43,31 @@ class ConfirmCloseModal(ui.View):
         self.cancel_button.disabled = True
 
         closing_message = self.texts.get("closing_in_progress", "Подождите, тикет закрывается...")
-        await interaction.response.edit_message(content=closing_message, view=self)
+        embed = disnake.Embed(description=f"⏳ {closing_message}", color=disnake.Color.orange())
+        await interaction.response.edit_message(content=None, embed=embed, view=self)
 
         closed_by = interaction.user
 
         transcript, attachments = await self._collect_media_and_generate_transcript()
-        embed = self._create_embed(closed_by)
+        embed = self._create_embed(closed_by, interaction.guild.id)
 
         message_link = await self._send_log_and_get_link(interaction, embed, transcript, attachments)
 
         if message_link:
             try:
-                log_ticket_close(self.channel.id, message_link)
+                if self.ticket_db_id:
+                    log_ticket_close(self.ticket_db_id, message_link)
+                else:
+                    log_ticket_close(self.channel.id, message_link)
+                    log.warning(
+                        f"Could not find ticket_db_id for channel {self.channel.id}, logged close by channel_id.")
             except Exception as e:
                 log.error(f"DB Error on ticket close: {e}")
+        else:
+            log.warning(f"Could not log ticket close to DB, no message_link for channel {self.channel.id}")
 
-
-        await interaction.followup.send(self.texts["success"], ephemeral=True)
+        await interaction.followup.send(
+            embed=disnake.Embed(description=self.texts["success"], color=disnake.Color.green()), ephemeral=True)
 
         try:
             await self.channel.delete(reason=f"Ticket closed by {closed_by.display_name}")
@@ -72,8 +81,9 @@ class ConfirmCloseModal(ui.View):
 
     @ui.button(label="Cancel", style=disnake.ButtonStyle.secondary, custom_id="cancel_close")
     async def cancel_button(self, button: ui.Button, interaction: disnake.MessageInteraction):
-        await interaction.response.edit_message(content=self.texts.get("cancelled", "Ticket closing cancelled"),
-                                                view=None)
+        cancel_text = self.texts.get("cancelled", "Ticket closing cancelled")
+        embed = disnake.Embed(description=cancel_text, color=disnake.Color.red())
+        await interaction.response.edit_message(embed=embed, content=None, view=None)
         self.stop()
 
     async def _collect_media_and_generate_transcript(self):
@@ -85,12 +95,15 @@ class ConfirmCloseModal(ui.View):
             if message.content:
                 content_part = message.clean_content.replace('\n', ' ')
             elif message.embeds:
-                embed_title = message.embeds[0].title if message.embeds[0].title else "Embed"
-                content_part = f"[{embed_title}]"
+                embed = message.embeds[0]
+                content_part = f"[{embed.title or 'Embed'}]"
+                if embed.description:
+                    desc = ' '.join(embed.description.splitlines())
+                    content_part += f" {desc}"
 
             attachment_part = ""
             if message.attachments:
-                attachment_descriptions = [f"[Файл: {att.filename} | URL: {att.url}]" for att in message.attachments]
+                attachment_descriptions = [f"[File: {att.filename} | URL: {att.url}]" for att in message.attachments]
                 attachment_part = " ".join(attachment_descriptions)
 
                 for att in message.attachments:
@@ -112,7 +125,7 @@ class ConfirmCloseModal(ui.View):
 
         return "\n".join(transcript_lines), attachments_to_upload
 
-    def _create_embed(self, closed_by):
+    def _create_embed(self, closed_by, guild_id):
         texts = TEXTS[self.lang]["modals"]["embed_titles"]
         ticket_type = self.ticket_data['type']
 
@@ -131,6 +144,17 @@ class ConfirmCloseModal(ui.View):
                 continue
             display_value = field_value if len(field_value) <= 1000 else field_value[:1000] + "..."
             embed.add_field(name=field_name, value=display_value, inline=False)
+
+        if self.ticket_db_id:
+            try:
+                log_message_id = get_punishment_log_id_for_ticket(self.ticket_db_id)
+                if log_message_id:
+                    punishments_channel_id = config.channels["channels"]["📌│punishments"]["id"]
+                    log_url = f"https://discord.com/channels/{guild_id}/{punishments_channel_id}/{log_message_id}"
+                    embed.add_field(name="Punishment Log", value=f"**[View Log Message]({log_url})**", inline=False)
+            except Exception as e:
+                log.error(f"Failed to get punishment log link for ticket {self.ticket_db_id}: {e}")
+
         return embed
 
     async def _send_log_and_get_link(self, interaction, embed, transcript_text, attachments):
@@ -171,7 +195,7 @@ class ConfirmCloseModal(ui.View):
             if attachments:
                 thread = None
                 try:
-                    thread_name = f"Медиа-файлы из тикета {self.channel.name}"
+                    thread_name = f"Media from ticket {self.channel.name}"
                     if len(thread_name) > 100:
                         thread_name = thread_name[:97] + "..."
                     thread = await message.create_thread(name=thread_name)

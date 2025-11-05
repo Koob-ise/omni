@@ -56,6 +56,7 @@ def init_db():
             )),
             performed_by INTEGER NOT NULL,
             ticket_id INTEGER,
+            log_message_id TEXT,
             role TEXT,
             reason TEXT,
             time TEXT NOT NULL,
@@ -134,6 +135,7 @@ def _add_action(user_id, performed_by_id, action_type, ticket_id=None, role=None
         )
         conn.commit()
         logger.info(f"Added {action_type} for user_id {user_id} by user_id {performed_by_id}")
+        return cursor.lastrowid
 
 
 def get_active_punishment(user_internal_id, action_type):

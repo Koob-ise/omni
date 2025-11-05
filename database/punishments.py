@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 import pytz
 from .core import (
     _add_action, create_user, get_active_punishment, deactivate_action,
-    revoke_action, get_user_internal_id, logger, resolve_user_ids
+    revoke_action, get_user_internal_id, logger, resolve_user_ids, db_connection
 )
 
 
@@ -35,32 +35,32 @@ def add_punishment(platform, main_user_id, performer_id, reason, action_type, du
     main_user_internal_id, performer_internal_id = resolve_user_ids(platform, main_user_id, performer_id)
 
     if action_type == "kick":
-        _add_action(main_user_internal_id, performer_internal_id, "kick", reason=reason, ticket_id=ticket_id)
-        return 'ADDED'
+        punishment_id = _add_action(main_user_internal_id, performer_internal_id, "kick", reason=reason, ticket_id=ticket_id)
+        return 'ADDED', punishment_id
 
     if duration_seconds is None:
-        raise ValueError(f"duration_seconds является обязательным для '{action_type}'")
+        raise ValueError(f"duration_seconds is required for '{action_type}'")
 
     gmt = pytz.timezone('GMT')
     end_time_dt = datetime.now(gmt) + timedelta(seconds=duration_seconds)
     expires_at_str = end_time_dt.strftime('%Y-%m-%d %H:%M:%S')
 
     if action_type == "warn":
-        _add_action(main_user_internal_id, performer_internal_id, "warn", reason=reason,
+        punishment_id = _add_action(main_user_internal_id, performer_internal_id, "warn", reason=reason,
                     duration_seconds=duration_seconds,
                     expires_at=expires_at_str, ticket_id=ticket_id)
-        return 'ADDED'
+        return 'ADDED', punishment_id
 
     stackable_actions = ["mute", "ban", "blacklist", "voice_mute"]
     if action_type in stackable_actions:
         if _handle_punishment_stacking(main_user_internal_id, action_type, end_time_dt):
-            _add_action(main_user_internal_id, performer_internal_id, action_type, reason=reason,
+            punishment_id = _add_action(main_user_internal_id, performer_internal_id, action_type, reason=reason,
                         duration_seconds=duration_seconds, expires_at=expires_at_str,
                         ticket_id=ticket_id)
-            return 'ADDED'
-        return 'SKIPPED'
+            return 'ADDED', punishment_id
+        return 'SKIPPED', None
 
-    raise ValueError(f"Неподдерживаемый тип действия в add_punishment: {action_type}")
+    raise ValueError(f"Unsupported action type in add_punishment: {action_type}")
 
 
 def revoke_punishment(platform, main_user_id, revoked_by_id, reason, action_type):
@@ -74,3 +74,21 @@ def revoke_punishment(platform, main_user_id, revoked_by_id, reason, action_type
         return revoke_action(active_punishment['id'], revoker_internal_id, reason)
 
     return False
+
+
+def update_punishment_log_id(punishment_id, log_message_id):
+    if not punishment_id or not log_message_id:
+        return False
+    try:
+        with db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE user_actions SET log_message_id = ? WHERE id = ?",
+                (str(log_message_id), punishment_id)
+            )
+            conn.commit()
+            logger.info(f"Updated log_message_id for punishment {punishment_id} to {log_message_id}")
+            return True
+    except Exception as e:
+        logger.error(f"Failed to update log_message_id for punishment {punishment_id}: {e}")
+        return False

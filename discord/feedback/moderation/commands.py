@@ -10,6 +10,7 @@ from .views import ConfirmPunishmentView, ConfirmRevokeView
 from .actions import apply_punishment, apply_revocation
 from database.core import check_ticket_has_punishment
 from database.tickets import get_ticket_db_id_by_channel
+from database.punishments import update_punishment_log_id
 
 log = logging.getLogger(__name__)
 
@@ -56,6 +57,7 @@ def setup_moderation_commands(bot, channels_config, roles_config):
             return await inter.response.send_message(f"❌ User `{user_tag}` not found on server!", ephemeral=True)
 
         duration_delta = None
+        duration_text = "Permanent"
         if duration:
             try:
                 duration_delta = parse_duration(duration)
@@ -80,7 +82,6 @@ def setup_moderation_commands(bot, channels_config, roles_config):
         embed.add_field(name="👤 Offender", value=offender.mention, inline=True)
         embed.add_field(name="⚖️ Action", value=action, inline=True)
 
-        duration_text = "Permanent"
         if action != 'kick':
             if duration_delta:
                 days, rem = divmod(duration_delta.total_seconds(), 86400)
@@ -120,7 +121,7 @@ def setup_moderation_commands(bot, channels_config, roles_config):
         try:
             await view.wait()
             if view.confirmed:
-                status, deleted_count = await apply_punishment(
+                status, deleted_count, punishment_id = await apply_punishment(
                     inter, offender, action, duration_delta, reason,
                     delete_days, moderation_roles, view.ticket_db_id
                 )
@@ -131,16 +132,29 @@ def setup_moderation_commands(bot, channels_config, roles_config):
                 punishments_webhook_name = punishments_webhook_config.get("name")
                 log_sender = await get_webhook(punishments_channel, punishments_webhook_name) or punishments_channel
 
-                response_message = ""
+                response_embed = None
+                punishment_log_msg = None
 
                 if status == 'SUCCESS' or status == 'SUCCESS_WARN_AND_PUNISH':
                     if status == 'SUCCESS':
                         response_message = f"✅ {action.capitalize()} applied to {offender.mention}!"
+                        response_embed = disnake.Embed(description=response_message, color=disnake.Color.green())
+
                         if log_sender:
-                            pass
+                            log_embed = disnake.Embed(title=f"🚨 {action.capitalize()} Issued",
+                                                      color=disnake.Color.red(), timestamp=disnake.utils.utcnow())
+                            log_embed.add_field(name="👤 Offender", value=f"{offender.mention} ({offender.id})",
+                                                inline=True)
+                            log_embed.add_field(name="🛡 Moderator", value=inter.author.mention, inline=True)
+                            if duration_text != "Permanent":
+                                log_embed.add_field(name="⏱ Duration", value=duration_text, inline=True)
+                            log_embed.add_field(name="📝 Reason", value=reason, inline=False)
+                            punishment_log_msg = await log_sender.send(embed=log_embed, wait=True)
 
                     elif status == 'SUCCESS_WARN_AND_PUNISH':
                         response_message = f"✅ Warn applied. User reached {WARNS_UNTIL_ACTION} warnings and has been automatically **{ACTION_ON_WARN_LIMIT}ed**."
+                        response_embed = disnake.Embed(description=response_message, color=disnake.Color.green())
+
                         if log_sender:
                             warn_log = disnake.Embed(title="⚠️ Warn Issued", color=disnake.Color.yellow(),
                                                      timestamp=disnake.utils.utcnow())
@@ -163,20 +177,37 @@ def setup_moderation_commands(bot, channels_config, roles_config):
                             auto_punish_log.add_field(name="📝 Reason",
                                                       value=f"Reached {WARNS_UNTIL_ACTION} active warnings.",
                                                       inline=False)
-                            await log_sender.send(embed=auto_punish_log)
+                            punishment_log_msg = await log_sender.send(embed=auto_punish_log, wait=True)
 
                     if deleted_count > 0:
-                        response_message += f" Deleted {deleted_count} of their messages."
-                    await webhook.send(content=response_message)
+                        response_embed.description += f" Deleted {deleted_count} of their messages."
+
+                    if punishment_log_msg:
+                        response_embed.description += f"\n**[View Log]({punishment_log_msg.jump_url})**"
+                        if punishment_id:
+                            try:
+                                update_punishment_log_id(punishment_id, punishment_log_msg.id)
+                            except Exception as e:
+                                log.error(f"Failed to update log_message_id for punishment {punishment_id}: {e}")
+
+                    await webhook.send(embed=response_embed)
 
                 elif status == 'ALREADY_LONGER':
-                    await webhook.send(
-                        content=f"ℹ️ A longer or equal `{action}` punishment is already active. No action was taken.")
+                    response_embed = disnake.Embed(
+                        description=f"ℹ️ A longer or equal `{action}` punishment is already active. No action was taken.",
+                        color=disnake.Color.orange()
+                    )
+                    await webhook.send(embed=response_embed)
                 else:
-                    await webhook.send(content=f"❌ Failed to apply punishment to {offender.mention}!")
+                    response_embed = disnake.Embed(
+                        description=f"❌ Failed to apply punishment to {offender.mention}!",
+                        color=disnake.Color.red()
+                    )
+                    await webhook.send(embed=response_embed)
         except Exception as e:
             log.error(f"Error confirming punishment: {e}", exc_info=True)
-            await webhook.send(content="❌ An error occurred while processing punishment.")
+            await webhook.send(embed=disnake.Embed(description="❌ An error occurred while processing punishment.",
+                                                   color=disnake.Color.red()))
         finally:
             try:
                 await confirmation_msg.delete()
@@ -240,6 +271,8 @@ def setup_moderation_commands(bot, channels_config, roles_config):
             await view.wait()
             if view.confirmed:
                 status = await apply_revocation(inter, user_to_revoke, action, reason, moderation_roles)
+                response_embed = None
+                punishment_log_msg = None
 
                 if status == "SUCCESS":
                     punishments_channel_id = channels_config["channels"]["📌│punishments"]["id"]
@@ -256,19 +289,184 @@ def setup_moderation_commands(bot, channels_config, roles_config):
                         punishments_webhook_config = channels_config["channels"]["📌│punishments"].get("webhook", {})
                         punishments_webhook_name = punishments_webhook_config.get("name")
                         log_webhook = await get_webhook(log_channel, punishments_webhook_name)
-                        await (log_webhook or log_channel).send(embed=log_embed)
+                        punishment_log_msg = await (log_webhook or log_channel).send(embed=log_embed, wait=True)
 
-                    await webhook.send(f"✅ Successfully revoked `{action}` for {user_to_revoke.mention}.")
+                    response_embed = disnake.Embed(
+                        description=f"✅ Successfully revoked `{action}` for {user_to_revoke.mention}.",
+                        color=disnake.Color.green()
+                    )
+
+                    if punishment_log_msg:
+                        response_embed.description += f"\n**[View Log]({punishment_log_msg.jump_url})**"
+
+                    await webhook.send(embed=response_embed)
 
                 elif status == "NO_PUNISHMENT":
-                    await webhook.send(f"❌ Could not find an active `{action}` for {user_to_revoke.mention} to revoke.")
+                    response_embed = disnake.Embed(
+                        description=f"❌ Could not find an active `{action}` for {user_to_revoke.mention} to revoke.",
+                        color=disnake.Color.orange()
+                    )
+                    await webhook.send(embed=response_embed)
 
                 else:
-                    await webhook.send(f"❌ An error occurred while trying to revoke the punishment.")
+                    response_embed = disnake.Embed(
+                        description="❌ An error occurred while trying to revoke the punishment.",
+                        color=disnake.Color.red()
+                    )
+                    await webhook.send(embed=response_embed)
 
         except Exception as e:
             log.error(f"Error during revocation process: {e}", exc_info=True)
-            await webhook.send(content="❌ An unexpected error occurred.")
+            await webhook.send(embed=disnake.Embed(description="❌ An unexpected error occurred.",
+                                                   color=disnake.Color.red()))
+        finally:
+            try:
+                await confirmation_msg.delete()
+            except disnake.NotFound:
+                pass
+
+    @bot.slash_command(
+        name="unpunish",
+        description="Revokes an active punishment from a user."
+    )
+    async def unpunish(
+            inter: disnake.ApplicationCommandInteraction,
+            user_to_revoke: disnake.User = commands.Param(description="The user to revoke the punishment from."),
+            action: str = commands.Param(choices=["ban", "mute", "voice-mute", "blacklist", "warn"],
+                                         description="The type of punishment to revoke."),
+            reason: str = commands.Param("Moderator revoked punishment without appeal",
+                                         description="Description of the revocation (maps to 'desc' field)."),
+            rule: str = commands.Param(None, description="The rule that was originally broken (optional)."),
+            punishment_datetime: str = commands.Param(None, description="The original punishment date/time (optional).")
+    ):
+        bot_channel_id = channels_config["channels"]["🤖│bot"]["id"]
+        if inter.channel.id != bot_channel_id:
+            return await inter.response.send_message(
+                f"❌ This command only works in the <#{bot_channel_id}> channel!",
+                ephemeral=True
+            )
+
+        if not has_permission(inter.author, action, roles_config):
+            return await inter.response.send_message("❌ You don't have permission to revoke this punishment.",
+                                                     ephemeral=True)
+
+        user_object = None
+        try:
+            user_object = await inter.guild.fetch_member(user_to_revoke.id)
+        except disnake.NotFound:
+            user_object = user_to_revoke
+        except Exception as e:
+            log.warning(f"Could not fetch member {user_to_revoke.id}, falling back to User object: {e}")
+            user_object = user_to_revoke
+
+        if not user_object:
+            user_object = user_to_revoke
+
+        bot_webhook_config = channels_config["channels"]["🤖│bot"].get("webhook", {})
+        bot_webhook_name = bot_webhook_config.get("name")
+        bot_webhook = await get_webhook(inter.channel, bot_webhook_name)
+        if not bot_webhook:
+            log.error(f"Webhook '{bot_webhook_name}' not found in '🤖│bot'. Cannot send messages.")
+            return await inter.response.send_message("❌ Bot webhook not configured for this channel.", ephemeral=True)
+
+        embed = disnake.Embed(title="✅ Revocation Confirmation", color=disnake.Color.orange())
+        embed.add_field(name="👤 User", value=f"{user_object.mention} ({user_object.id})", inline=False)
+        embed.add_field(name="⚖️ Action to Revoke", value=action.capitalize(), inline=False)
+        embed.add_field(name="📝 Reason", value=reason, inline=False)
+        embed.set_footer(text="Confirm or cancel the revocation")
+
+        view = ConfirmRevokeView(
+            user_to_revoke=user_object, action=action,
+            reason=reason, moderation_roles=moderation_roles
+        )
+
+        await inter.response.send_message("⏳ Waiting for revocation confirmation...", ephemeral=True)
+        confirmation_msg = await bot_webhook.send(embed=embed, view=view, wait=True)
+
+        try:
+            await view.wait()
+            if view.confirmed:
+                status = await apply_revocation(inter, user_object, action, reason, moderation_roles)
+                response_embed = None
+
+                if status == "SUCCESS":
+                    punishments_channel_id = channels_config["channels"]["📌│punishments"]["id"]
+                    log_channel = inter.guild.get_channel(punishments_channel_id)
+                    punishment_log_msg = None
+
+                    if log_channel:
+                        log_embed = disnake.Embed(title="✅ Punishment Revoked", color=disnake.Color.green(),
+                                                  timestamp=disnake.utils.utcnow())
+                        log_embed.add_field(name="👤 User", value=f"{user_object.mention} ({user_object.id})",
+                                            inline=True)
+                        log_embed.add_field(name="🛡 Moderator", value=inter.author.mention, inline=True)
+                        log_embed.add_field(name="⚖️ Action Revoked", value=action.capitalize(), inline=True)
+                        log_embed.add_field(name="📝 Reason", value=reason, inline=False)
+
+                        punishments_webhook_config = channels_config["channels"]["📌│punishments"].get("webhook", {})
+                        punishments_webhook_name = punishments_webhook_config.get("name")
+                        log_webhook = await get_webhook(log_channel, punishments_webhook_name)
+                        punishment_log_msg = await (log_webhook or log_channel).send(embed=log_embed, wait=True)
+
+                    closed_tickets_channel_config = channels_config["channels"].get("📌│closed-tickets", {})
+                    closed_tickets_channel_id = closed_tickets_channel_config.get("id")
+                    closed_tickets_channel = inter.guild.get_channel(closed_tickets_channel_id)
+
+                    if closed_tickets_channel:
+                        closed_embed = disnake.Embed(
+                            title="Punishment Revoked",
+                            color=disnake.Color.green(),
+                            timestamp=disnake.utils.utcnow()
+                        )
+
+                        closed_embed.add_field(name="Type", value="Manual Revoke", inline=True)
+                        closed_embed.add_field(name="Platform", value="Discord", inline=True)
+                        closed_embed.add_field(name="User", value=f"{user_object.mention}", inline=True)
+                        closed_embed.add_field(name="Moderator", value=inter.author.mention, inline=False)
+                        closed_embed.add_field(name="rule", value=f"{rule if rule else '—'}", inline=False)
+                        closed_embed.add_field(name="punishment_datetime",
+                                               value=f"{punishment_datetime if punishment_datetime else '—'}",
+                                               inline=False)
+                        closed_embed.add_field(name="desc", value=reason, inline=False)
+
+                        if punishment_log_msg and log_channel:
+                            closed_embed.add_field(name="Log Link",
+                                                   value=f"**[View Log Message]({punishment_log_msg.jump_url})**",
+                                                   inline=False)
+                        else:
+                            closed_embed.set_footer(
+                                text=f"Error: Could not link to #punishments log.")
+
+                        closed_webhook_config = closed_tickets_channel_config.get("webhook", {})
+                        closed_webhook_name = closed_webhook_config.get("name")
+                        closed_log_webhook = await get_webhook(closed_tickets_channel, closed_webhook_name)
+
+                        await (closed_log_webhook or closed_tickets_channel).send(embed=closed_embed)
+
+                    response_embed = disnake.Embed(
+                        description=f"✅ Successfully revoked `{action}` for {user_object.mention}.",
+                        color=disnake.Color.green()
+                    )
+                    await bot_webhook.send(embed=response_embed)
+
+                elif status == "NO_PUNISHMENT":
+                    response_embed = disnake.Embed(
+                        description=f"❌ Could not find an active `{action}` for {user_object.mention} to revoke.",
+                        color=disnake.Color.orange()
+                    )
+                    await bot_webhook.send(embed=response_embed)
+
+                else:
+                    response_embed = disnake.Embed(
+                        description="❌ An error occurred while trying to revoke the punishment.",
+                        color=disnake.Color.red()
+                    )
+                    await bot_webhook.send(embed=response_embed)
+
+        except Exception as e:
+            log.error(f"Error during /unpunish command: {e}", exc_info=True)
+            await bot_webhook.send(embed=disnake.Embed(description="❌ An unexpected error occurred.",
+                                                       color=disnake.Color.red()))
         finally:
             try:
                 await confirmation_msg.delete()
@@ -282,7 +480,7 @@ def setup_moderation_commands(bot, channels_config, roles_config):
     ):
         ticket_category_id = channels_config["categories"]["❓│Помощь / Support"]["id"]
         if inter.channel.category_id != ticket_category_id:
-            return await inter.response.send_message("❌ This command can only be used in a ticket channel.",
+            return await inter.response.send_message("❌ This command only works in a ticket channel.",
                                                      ephemeral=True)
 
         if member.bot: return await inter.response.send_message("❌ You cannot invite bots to a ticket.", ephemeral=True)
@@ -306,9 +504,14 @@ def setup_moderation_commands(bot, channels_config, roles_config):
                                                      ephemeral=True)
 
         webhook = await get_webhook_for_channel(inter.channel, channels_config, "❓│Помощь / Support")
+
+        invite_embed = disnake.Embed(
+            description=f"👋 {member.mention} has been invited to this ticket by {inter.author.mention}.",
+            color=disnake.Color.blue()
+        )
         if webhook:
-            await webhook.send(f"👋 {member.mention} has been invited to this ticket by {inter.author.mention}.")
+            await webhook.send(embed=invite_embed)
         else:
-            await inter.channel.send(f"👋 {member.mention} has been invited to this ticket by {inter.author.mention}.")
+            await inter.channel.send(embed=invite_embed)
 
         await inter.response.send_message(f"✅ Successfully invited {member.mention} to this ticket.", ephemeral=True)

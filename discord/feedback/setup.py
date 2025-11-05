@@ -8,6 +8,7 @@ from configs.feedback_config import config, TEXTS, TICKET_COLORS
 from .views import FeedbackView
 from .modals import ConfirmCloseModal
 from .moderation.helpers import find_offender_in_ticket
+from database.tickets import get_ticket_db_id_by_channel
 
 log = logging.getLogger(__name__)
 
@@ -119,6 +120,10 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
             if field.name not in ["Platform", "Платформа"]:
                 form_data[field.name] = field.value
 
+        ticket_db_id = get_ticket_db_id_by_channel(channel.id)
+        if not ticket_db_id:
+            log.warning(f"Could not find ticket_db_id for channel {channel.id} during close.")
+
         modal = ConfirmCloseModal(
             channel=channel,
             opener=opener,
@@ -128,24 +133,25 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
                 'platform': platform,
                 'content': form_data
             },
-            lang=lang
+            lang=lang,
+            ticket_db_id=ticket_db_id
         )
         await interaction.followup.send(content=modal.confirmation_text, view=modal, ephemeral=True)
 
     guild = bot.get_guild(guild_id)
     if not guild:
-        log.error(f"Сервер с ID {guild_id} не найден")
+        log.error(f"Guild with ID {guild_id} not found")
         return
 
     async def setup_channel(ch_key, lang, is_russian):
         ch_cfg = channels_config["channels"].get(ch_key)
         if not ch_cfg:
-            log.error(f"Конфиг для канала {ch_key} не найден")
+            log.error(f"Config for channel {ch_key} not found")
             return
 
         channel = guild.get_channel(ch_cfg["id"])
         if not channel:
-            log.error(f"Канал не найден: ID {ch_cfg['id']}")
+            log.error(f"Channel not found: ID {ch_cfg['id']}")
             return
 
         webhook_cfg = ch_cfg.get("webhook", {})
@@ -153,7 +159,7 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
         webhook_avatar_path = webhook_cfg.get("avatar")
 
         if not webhook_name:
-            log.error(f"Имя вебхука не указано для канала {ch_key}")
+            log.error(f"Webhook name not specified for channel {ch_key}")
             return
 
         webhook = await get_webhook(channel, webhook_name)
@@ -165,12 +171,12 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
                         with open(webhook_avatar_path, "rb") as f:
                             avatar_bytes = f.read()
                     except FileNotFoundError:
-                        log.warning(f"Файл аватара для вебхука {webhook_name} не найден: {webhook_avatar_path}")
+                        log.warning(f"Avatar file for webhook {webhook_name} not found: {webhook_avatar_path}")
 
                 webhook = await channel.create_webhook(name=webhook_name, avatar=avatar_bytes)
-                log.info(f"Создан новый вебхук: {webhook_name}")
+                log.info(f"Created new webhook: {webhook_name}")
             except Exception as e:
-                log.error(f"Ошибка создания вебхука: {e}")
+                log.error(f"Error creating webhook: {e}")
                 return
 
         existing_message = None
@@ -196,7 +202,7 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
                 banner_file = disnake.File(banner_path, filename=banner_path.split('/')[-1])
                 embed.set_image(url=f"attachment://{banner_file.filename}")
             except FileNotFoundError:
-                log.warning(f"Файл баннера не найден: {banner_path}")
+                log.warning(f"Banner file not found: {banner_path}")
                 banner_file = None
                 banner_path = None
 
@@ -206,7 +212,7 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
             user_states=user_states,
             webhook_name=webhook_name,
             channel_id=channel.id,
-            banner_path = banner_path
+            banner_path=banner_path
         )
 
         files_to_send = [banner_file] if banner_file else []
@@ -219,10 +225,10 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
                     view=view,
                     files=files_to_send
                 )
-                log.info(f"Сообщение в канале {channel.name} обновлено")
+                log.info(f"Message in channel {channel.name} updated")
                 view.message = existing_message
             except Exception as e:
-                log.error(f"Ошибка обновления сообщения: {e}")
+                log.error(f"Error updating message: {e}")
         else:
             try:
                 message = await webhook.send(
@@ -232,9 +238,9 @@ async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
                     wait=True
                 )
                 view.message = message
-                log.info(f"Отправлено новое сообщение в канал {channel.name}")
+                log.info(f"Sent new message to channel {channel.name}")
             except Exception as e:
-                log.error(f"Ошибка отправки сообщения: {e}")
+                log.error(f"Error sending message: {e}")
 
         if view.message:
             bot.add_view(view, message_id=view.message.id)
