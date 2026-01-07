@@ -1,4 +1,8 @@
 {
+  "default_thread_deleter_webhook": {
+    "name": "📌 Thread Manager",
+    "avatar": "../configs/images/image.jpg"
+  },
   "categories": {
     "❓│Помощь / Support": {
       "id": 1381441417125171280,
@@ -23,6 +27,10 @@
         "name": "⚖ Feedback Bot",
         "avatar": "../configs/images/image.jpg",
         "banner": "../configs/images/image.jpg"
+      },
+      "thread_deleter_webhook": {
+        "name": "⚖ Feedback Deleter",
+        "avatar_url": "../configs/images/image.jpg"
       }
     },
     "⚖│feedback": {

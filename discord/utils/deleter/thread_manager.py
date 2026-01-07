@@ -2,28 +2,46 @@ import disnake
 from disnake.ui import Button, View
 from .permissions import PermissionChecker
 from .confirmation import create_confirmation_view
+from typing import Dict, Optional
 
 
 class ThreadManager:
-    def __init__(self, bot: disnake.ext.commands.Bot, permission_checker: PermissionChecker, channels_config: dict,
-                 prohibited_thread_parent_names: list):
+    def __init__(self, bot: disnake.ext.commands.Bot,
+                 permission_checker: PermissionChecker,
+                 channels_config: dict,
+                 prohibited_thread_parent_names: list,
+                 deleter_webhooks: Dict[int, disnake.Webhook]):
+
         self.bot = bot
         self.permission_checker = permission_checker
         self.processed_threads = set()
+        self.deleter_webhooks = deleter_webhooks
+        self.bot.add_listener(self.handle_new_thread, 'on_thread_create')
 
         self.prohibited_parent_ids = set()
         if channels_config and prohibited_thread_parent_names:
-            all_channels = channels_config.get("channels", {})
+            all_parents = channels_config.get("channels", {}).copy()
+            all_parents.update(channels_config.get("categories", {}))
+
             for name in prohibited_thread_parent_names:
-                if name in all_channels:
-                    self.prohibited_parent_ids.add(all_channels[name]["id"])
+                if name in all_parents:
+                    self.prohibited_parent_ids.add(all_parents[name]["id"])
 
     async def handle_new_thread(self, thread: disnake.Thread):
         if thread.id in self.processed_threads:
             return
 
+        # --- НАЧАЛО ИСПРАВЛЕНИЯ ---
+        # Проверяем, запрещен ли сам родительский канал ИЛИ категория, в которой он находится
+        is_prohibited = False
         if thread.parent_id in self.prohibited_parent_ids:
+            is_prohibited = True
+        elif thread.parent and thread.parent.category_id in self.prohibited_parent_ids:
+            is_prohibited = True
+
+        if is_prohibited:
             return
+        # --- КОНЕЦ ИСПРАВЛЕНИЯ ---
 
         self.processed_threads.add(thread.id)
         await self.send_delete_button(thread)
@@ -38,10 +56,24 @@ class ThreadManager:
                     custom_id=f"delete_user_thread_{thread.id}"
                 )
             )
-            await thread.send(
-                "ℹ️ The thread creator and moderators can delete this thread using the button below.",
-                view=view
-            )
+            content = "ℹ️ The thread creator and moderators can delete this thread using the button below."
+
+            webhook_to_use = self.deleter_webhooks.get(thread.parent_id)
+
+            if webhook_to_use:
+                try:
+                    await webhook_to_use.send(
+                        content,
+                        view=view,
+                        thread=thread,
+                    )
+                    return
+                except (disnake.NotFound, disnake.Forbidden, ValueError) as e:
+                    print(
+                        f"Webhook error for thread {thread.id} (parent {thread.parent_id}): {e}. Falling back to bot.")
+
+            await thread.send(content, view=view)
+
         except disnake.HTTPException as e:
             print(f"Error sending delete button to thread {thread.id}: {e}")
 

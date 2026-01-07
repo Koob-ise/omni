@@ -35,7 +35,6 @@ bot = commands.Bot(
 init_db()
 
 setup_slash_commands_push(bot,channels_config, roles_config)
-setup_deleter(bot, roles_config,channels_config)
 setup_edit_embed_command(bot, roles_config, channels_config)
 setup_moderation_commands(bot, channels_config, roles_config)
 
@@ -43,7 +42,8 @@ test(bot, roles_config)
 
 @bot.event
 async def on_ready():
-    await setup_webhooks(bot, channels_path)
+    main_webhooks, deleter_webhooks = await setup_webhooks(bot, channels_config)
+    await setup_deleter(bot, roles_config, channels_config, deleter_webhooks)
     await setup_read_first(
         bot=bot,
         guild_id=config["server"]["id"],
