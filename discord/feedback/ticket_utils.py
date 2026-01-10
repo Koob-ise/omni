@@ -12,6 +12,42 @@ from database.core import (
 log = logging.getLogger(__name__)
 
 
+def get_rule_description_text(input_string, lang):
+    if not hasattr(config, 'rules') or not config.rules.get(lang):
+        log.warning(f"Rules for language '{lang}' not found in config.")
+        return None
+
+    rules_data = config.rules[lang]  # {'full': {...}, 'basic': {...}}
+
+    requested_rules = re.findall(r"(\d+(?:\.\d+)+)", input_string)
+
+    if not requested_rules:
+        return None
+
+    requested_rules = sorted(list(set(requested_rules)), key=lambda x: [int(d) for d in x.split('.')])
+
+    full_text_list = []
+    basic_text_list = []
+
+    for rule_num in requested_rules:
+        if rule_num in rules_data.get("full", {}):
+            full_text_list.append(f"**{rule_num}** {rules_data['full'][rule_num]}")
+
+        if rule_num in rules_data.get("basic", {}):
+            basic_text_list.append(f"**{rule_num}** {rules_data['basic'][rule_num]}")
+
+    result_parts = []
+
+    if full_text_list:
+        result_parts.append("\n".join(full_text_list))
+
+    if basic_text_list:
+        header = "[ Basic version ]" if lang == "en" else "[ Базовая версия ]"
+        result_parts.append(f"\n**{header}**\n" + "\n".join(basic_text_list))
+
+    return "\n".join(result_parts) if result_parts else None
+
+
 async def create_ticket_channel(interaction, title, platform, form_data, lang="en"):
     try:
         log.info("Starting ticket channel creation")
@@ -217,6 +253,17 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
                     field_value = field_value[:1021] + "…"
                 embed.add_field(name=field_name, value=field_value, inline=False)
                 log.debug(f"Added field: {field_name} = {field_value[:50]}...")
+
+                if field_name == "rule":
+                    rule_descriptions = get_rule_description_text(english_form_data[field_name], lang)
+                    if rule_descriptions:
+                        field_title = "📜 Rule Details" if lang == "en" else "📜 Описание правил"
+
+                        if len(rule_descriptions) > 1024:
+                            rule_descriptions = rule_descriptions[:1021] + "..."
+
+                        embed.add_field(name=field_title, value=rule_descriptions, inline=False)
+                        log.info(f"Added rule descriptions for: {english_form_data[field_name]}")
 
         for key, val in english_form_data.items():
             if key not in field_order:

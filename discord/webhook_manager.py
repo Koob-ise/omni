@@ -42,7 +42,6 @@ async def _get_or_create_webhook(bot, channel, webhook_config: dict, default_nam
             log.info(f"Created webhook: {webhook.name} ({webhook.id})")
         else:
             log.debug(f"Using existing webhook for '{webhook_name}' in #{channel.name}")
-            # Обновляем аватар, если у существующего вебхука его нет, а в конфиге он есть
             if avatar_bytes and not webhook.avatar:
                 try:
                     await webhook.edit(avatar=avatar_bytes)
@@ -65,7 +64,6 @@ async def setup_webhooks(bot, channels_config: dict) -> Tuple[Dict[str, disnake.
     main_webhooks: Dict[str, disnake.Webhook] = {}
     deleter_webhooks: Dict[int, disnake.Webhook] = {}
 
-    # Загружаем конфиг дефолтного вебхука для удаления
     default_deleter_config = channels_config.get("default_thread_deleter_webhook")
 
     for channel_name, channel_data in channels_config.get("channels", {}).items():
@@ -79,27 +77,21 @@ async def setup_webhooks(bot, channels_config: dict) -> Tuple[Dict[str, disnake.
             log.warning(f"Channel not found in bot's cache: {channel_name} ({channel_id})")
             continue
 
-        # 1. Создаем/ищем ОСНОВНОЙ вебхук (как и раньше)
         main_webhook_config = channel_data.get("webhook")
         if main_webhook_config:
             main_wh = await _get_or_create_webhook(bot, channel, main_webhook_config, default_name="OmniCorp Bot")
             if main_wh:
                 main_webhooks[channel_name] = main_wh
 
-        # 2. Создаем/ищем ВЕБХУК ДЛЯ УДАЛЕНИЯ
 
-        # Ищем конфиг-переопределение в самом канале
         deleter_config = channel_data.get("thread_deleter_webhook")
 
-        # Если его нет, используем дефолтный конфиг
         if not deleter_config:
             deleter_config = default_deleter_config
 
-        # Если конфиг (дефолтный или переопределенный) есть, создаем вебхук
         if deleter_config:
             deleter_wh = await _get_or_create_webhook(bot, channel, deleter_config, default_name="Thread Manager")
             if deleter_wh:
-                # Сохраняем по ID канала, чтобы thread_manager мог его найти
                 deleter_webhooks[channel_id] = deleter_wh
 
     return main_webhooks, deleter_webhooks

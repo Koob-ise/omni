@@ -40,8 +40,13 @@ def has_close_permission(member, permission_key, roles_config):
     return False
 
 
-async def setup_feedback_channel(bot, channels_config, roles_config, guild_id):
+async def setup_feedback_channel(bot, channels_config, roles_config, guild_id, rules_config=None):
     config.init(channels_config, roles_config)
+
+    if rules_config:
+        config.rules = rules_config
+    else:
+        config.rules = {}
 
     @bot.listen("on_button_click")
     async def handle_close_button(interaction: disnake.MessageInteraction):

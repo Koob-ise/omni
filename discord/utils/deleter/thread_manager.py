@@ -31,8 +31,6 @@ class ThreadManager:
         if thread.id in self.processed_threads:
             return
 
-        # --- НАЧАЛО ИСПРАВЛЕНИЯ ---
-        # Проверяем, запрещен ли сам родительский канал ИЛИ категория, в которой он находится
         is_prohibited = False
         if thread.parent_id in self.prohibited_parent_ids:
             is_prohibited = True
@@ -41,7 +39,6 @@ class ThreadManager:
 
         if is_prohibited:
             return
-        # --- КОНЕЦ ИСПРАВЛЕНИЯ ---
 
         self.processed_threads.add(thread.id)
         await self.send_delete_button(thread)

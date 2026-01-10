@@ -7,19 +7,20 @@ from .button_handler import ButtonHandler
 from discord.webhook_manager import setup_webhooks
 
 
-# ВАЖНО: функция стала `async`
 async def setup_deleter(bot: disnake.ext.commands.Bot,
                         roles_config: dict,
                         channels_config: dict,
                         deleter_webhooks: dict):
 
 
-    # --- ВОТ ГЛАВНОЕ ИЗМЕНЕНИЕ ---
     prohibited_channels = [
         "❓│Помощь / Support",
-        "📌│closed-tickets"
+        "📌│closed-tickets",
+        "📜│rules",
+        "📌│server-info",
+        "📜│правила",
+        "📌│информация"
     ]
-    # --- КОНЕЦ ИЗМЕНЕНИЯ ---
 
     permission_checker = PermissionChecker(
         roles_config=roles_config,

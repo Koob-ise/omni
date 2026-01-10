@@ -52,9 +52,9 @@ MODAL_CONFIGS = {
         "title": "Complaint",
         "inputs": [
             {"label": "Offender's tag", "custom_id": "offender", "style": TextInputStyle.short, "max_length": 200},
-            {"label": "Rule violation", "custom_id": "rule", "style": TextInputStyle.short, "max_length": 5},
+            {"label": "Rule violation", "custom_id": "rule", "style": TextInputStyle.short, "max_length": 15},
             {"label": "Date & time of violation (GMT/Timezone)", "custom_id": "violation_datetime", "style": TextInputStyle.short, "max_length": 50},
-            {"label": "Violation description", "custom_id": "desc", "style": TextInputStyle.paragraph, "max_length": 4000},
+            {"label": "Violation description", "custom_id": "desc", "style": TextInputStyle.paragraph, "max_length": 1000},
             {"label": "Your game username and server", "custom_id": "username", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 300}
         ]
     },
@@ -63,7 +63,7 @@ MODAL_CONFIGS = {
         "inputs": [
             {"label": "Punishment reason", "custom_id": "reason", "style": TextInputStyle.short, "max_length": 500},
             {"label": "Punishment date & time (GMT/Timezone)", "custom_id": "punishment_datetime", "style": TextInputStyle.short, "max_length": 50},
-            {"label": "Description", "custom_id": "desc", "style": TextInputStyle.paragraph, "max_length": 4000},
+            {"label": "Description", "custom_id": "desc", "style": TextInputStyle.paragraph, "max_length": 1000},
             {"label": "Your game username", "custom_id": "username", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 200},
             {"label": "Server", "custom_id": "server", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 100}
         ]
@@ -74,7 +74,7 @@ MODAL_CONFIGS = {
             {"label": "Desired position", "custom_id": "position", "style": TextInputStyle.short, "max_length": 100},
             {"label": "Why you want this position", "custom_id": "why", "style": TextInputStyle.paragraph, "max_length": 500},
             {"label": "Age", "custom_id": "age", "style": TextInputStyle.short, "max_length": 2},
-            {"label": "About yourself", "custom_id": "about", "style": TextInputStyle.paragraph, "max_length": 4000},
+            {"label": "About yourself", "custom_id": "about", "style": TextInputStyle.paragraph, "max_length": 1000},
             {"label": "Your game username", "custom_id": "username", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 200}
         ]
     }
@@ -85,9 +85,9 @@ MODAL_CONFIGS_RU = {
         "title": "Жалоба",
         "inputs": [
             {"label": "Тег нарушителя", "custom_id": "offender", "style": TextInputStyle.short, "max_length": 200},
-            {"label": "Пункт правила", "custom_id": "rule", "style": TextInputStyle.short, "max_length": 5},
+            {"label": "Пункт правила", "custom_id": "rule", "style": TextInputStyle.short, "max_length": 15},
             {"label": "Дата и время нарушения (GMT/Часовой пояс)", "custom_id": "violation_datetime", "style": TextInputStyle.short, "max_length": 50},
-            {"label": "Описание нарушения", "custom_id": "desc", "style": TextInputStyle.paragraph, "max_length": 4000},
+            {"label": "Описание нарушения", "custom_id": "desc", "style": TextInputStyle.paragraph, "max_length": 1000},
             {"label": "Ваш игровой ник и сервер", "custom_id": "username", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 300}
         ]
     },
@@ -96,7 +96,7 @@ MODAL_CONFIGS_RU = {
         "inputs": [
             {"label": "Причина наказания", "custom_id": "reason", "style": TextInputStyle.short, "max_length": 500},
             {"label": "Дата и время наказания (GMT/Часовой пояс)", "custom_id": "punishment_datetime", "style": TextInputStyle.short, "max_length": 50},
-            {"label": "Описание", "custom_id": "desc", "style": TextInputStyle.paragraph, "max_length": 4000},
+            {"label": "Описание", "custom_id": "desc", "style": TextInputStyle.paragraph, "max_length": 1000},
             {"label": "Ваш игровой ник", "custom_id": "username", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 200},
             {"label": "Сервер", "custom_id": "server", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 100}
         ]
@@ -107,7 +107,7 @@ MODAL_CONFIGS_RU = {
             {"label": "Желаемая должность", "custom_id": "position", "style": TextInputStyle.short, "max_length": 100},
             {"label": "Почему вы хотите эту должность", "custom_id": "why", "style": TextInputStyle.paragraph, "max_length": 500},
             {"label": "Возраст", "custom_id": "age", "style": TextInputStyle.short, "max_length": 2},
-            {"label": "О себе", "custom_id": "about", "style": TextInputStyle.paragraph, "max_length": 4000},
+            {"label": "О себе", "custom_id": "about", "style": TextInputStyle.paragraph, "max_length": 1000},
             {"label": "Ваш игровой ник", "custom_id": "username", "style": TextInputStyle.short, "condition": lambda platform: platform == "mindustry", "max_length": 200}
         ]
     }

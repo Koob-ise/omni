@@ -18,12 +18,31 @@ config_path = os.path.join(os.path.dirname(__file__), "../configs/config.toml")
 channels_path = os.path.join(os.path.dirname(__file__), "../configs/channels_config.json")
 roles_path = os.path.join(os.path.dirname(__file__), "../configs/roles_config.json")
 
+rules_ru_path = os.path.join(os.path.dirname(__file__), "../configs/rules_ru.json")
+rules_en_path = os.path.join(os.path.dirname(__file__), "../configs/rules_en.json")
+
 config = toml.load(config_path)
 
 with open(channels_path, "r", encoding="utf-8") as f:
     channels_config = json.load(f)
 with open(roles_path, "r", encoding="utf-8") as f:
     roles_config = json.load(f)
+
+rules_config = {"ru": {"full": {}, "basic": {}}, "en": {"full": {}, "basic": {}}}
+try:
+    if os.path.exists(rules_ru_path):
+        with open(rules_ru_path, "r", encoding="utf-8") as f:
+            rules_config["ru"] = json.load(f)
+    else:
+        print(f"WARNING: Rules file not found at {rules_ru_path}")
+
+    if os.path.exists(rules_en_path):
+        with open(rules_en_path, "r", encoding="utf-8") as f:
+            rules_config["en"] = json.load(f)
+    else:
+        print(f"WARNING: Rules file not found at {rules_en_path}")
+except Exception as e:
+    print(f"ERROR loading rules: {e}")
 
 bot = commands.Bot(
     command_prefix=config["bot"]["prefix"],
@@ -34,16 +53,21 @@ bot = commands.Bot(
 
 init_db()
 
-setup_slash_commands_push(bot,channels_config, roles_config)
+setup_slash_commands_push(bot, channels_config, roles_config)
 setup_edit_embed_command(bot, roles_config, channels_config)
 setup_moderation_commands(bot, channels_config, roles_config)
 
 test(bot, roles_config)
 
-@bot.event
-async def on_ready():
+
+async def run_bot_setup():
+    await bot.wait_until_ready()
+    print("Bot connected. Starting Setup...")
+
     main_webhooks, deleter_webhooks = await setup_webhooks(bot, channels_config)
+
     await setup_deleter(bot, roles_config, channels_config, deleter_webhooks)
+
     await setup_read_first(
         bot=bot,
         guild_id=config["server"]["id"],
@@ -54,12 +78,25 @@ async def on_ready():
         bot=bot,
         channels_config=channels_config,
         roles_config=roles_config,
-        guild_id=config["server"]["id"])
+        guild_id=config["server"]["id"],
+        rules_config=rules_config
+    )
 
     await setup_server_stats(
         bot=bot,
         channels_config=channels_config,
         guild_id=config["server"]["id"])
 
+    print("? Setup completed successfully!")
+
+
+
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user} (ID: {bot.user.id})")
+
+
 if __name__ == "__main__":
+    bot.loop.create_task(run_bot_setup())
+
     bot.run(config["bot"]["DISCORD_BOT_TOKEN"])

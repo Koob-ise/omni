@@ -9,17 +9,14 @@ class ButtonHandler:
         self.bot = bot
         self.permission_checker = permission_checker
 
-        # --- НАЧАЛО ИСПРАВЛЕНИЯ ---
         self.prohibited_parent_ids = set()
         if channels_config and prohibited_thread_parent_names:
-            # Объединяем каналы и категории в один словарь для поиска
             all_parents = channels_config.get("channels", {}).copy()
             all_parents.update(channels_config.get("categories", {}))
 
             for name in prohibited_thread_parent_names:
                 if name in all_parents:
                     self.prohibited_parent_ids.add(all_parents[name]["id"])
-        # --- КОНЕЦ ИСПРАВЛЕНИЯ ---
 
         bot.listen("on_button_click")(self.on_button_click)
 
@@ -42,8 +39,6 @@ class ButtonHandler:
     async def _handle_delete_thread(self, inter, data):
         thread = data["thread"]
 
-        # --- НАЧАЛО ИСПРАВЛЕНИЯ ---
-        # Проверяем, запрещен ли сам родительский канал ИЛИ категория, в которой он находится
         is_prohibited = False
         if thread.parent_id in self.prohibited_parent_ids:
             is_prohibited = True
@@ -53,7 +48,6 @@ class ButtonHandler:
         if is_prohibited:
             await inter.edit_original_response(content="❌ Удаление веток в этом канале/категории запрещено.", view=None)
             return
-        # --- КОНЕЦ ИСПРАВЛЕНИЯ ---
 
         if not (self.permission_checker.has_thread_delete_permission(
                 inter.author) or thread.owner_id == inter.author.id):
