@@ -6,8 +6,8 @@ from database.punishments import add_punishment, revoke_punishment
 from database.core import create_user, count_active_warns, get_user_internal_id
 from .constants import (
     DEFAULT_BAN_SECONDS, DEFAULT_MUTE_SECONDS, DEFAULT_VOICE_MUTE_SECONDS,
-    DEFAULT_BLACKLIST_SECONDS, DEFAULT_WARN_DURATION_SECONDS, WARNS_UNTIL_ACTION,
-    ACTION_ON_WARN_LIMIT, ACTION_ON_WARN_DURATION_SECONDS
+    DEFAULT_BLACKLIST_SECONDS, DEFAULT_WARN_DURATION_SECONDS,
+    WARN_THRESHOLDS
 )
 from .helpers import clear_user_messages
 
@@ -29,28 +29,37 @@ async def apply_punishment(inter, offender, action, duration_delta, reason, dele
             duration_seconds = int(duration_delta.total_seconds()) if duration_delta else DEFAULT_WARN_DURATION_SECONDS
             user_internal_id = get_user_internal_id("discord", offender.id) or create_user(discord_id=offender.id)
 
-            status_db, punishment_id = add_punishment("discord", offender.id, inter.author.id, reason, "warn", duration_seconds,
-                                                ticket_id=ticket_db_id)
+            status_db, warn_id = add_punishment("discord", offender.id, inter.author.id, reason, "warn",
+                                                      duration_seconds,
+                                                      ticket_id=ticket_db_id)
 
             current_warns = count_active_warns(user_internal_id)
 
-            if current_warns > 0 and current_warns % WARNS_UNTIL_ACTION == 0:
-                multiplier = current_warns // WARNS_UNTIL_ACTION
-                auto_action_duration_seconds = ACTION_ON_WARN_DURATION_SECONDS * multiplier
+            if current_warns in WARN_THRESHOLDS:
+                threshold_config = WARN_THRESHOLDS[current_warns]
+                auto_action = threshold_config["action"]
+                auto_action_duration_seconds = threshold_config["duration"]
 
-                auto_action_reason = f"Automatic punishment (Level {multiplier}) for reaching {current_warns} warnings."
-                auto_action = ACTION_ON_WARN_LIMIT
-                auto_action_role = inter.guild.get_role(moderation_roles.get(auto_action))
+                auto_action_reason = f"Automatic punishment for reaching {current_warns} warnings."
 
-                if auto_action_role:
-                    await offender.add_roles(auto_action_role, reason=auto_action_reason)
+                if auto_action == "blacklist":
+                    await inter.guild.ban(offender, reason=auto_action_reason)
+                else:
+                    auto_action_role_id = moderation_roles.get(auto_action)
+                    if auto_action_role_id:
+                        auto_action_role = inter.guild.get_role(auto_action_role_id)
+                        if auto_action_role:
+                            await offender.add_roles(auto_action_role, reason=auto_action_reason)
+                    else:
+                        log.warning(f"Auto-punishment role '{auto_action}' not found in config.")
 
-                status_db, punishment_id = add_punishment("discord", offender.id, inter.author.id, auto_action_reason, auto_action,
-                               auto_action_duration_seconds, ticket_id=ticket_db_id)
+                status_db, auto_id = add_punishment("discord", offender.id, inter.author.id, auto_action_reason,
+                                                          auto_action,
+                                                          auto_action_duration_seconds, ticket_id=ticket_db_id)
 
-                return 'SUCCESS_WARN_AND_PUNISH', deleted_count, punishment_id
+                return 'SUCCESS_WARN_AND_PUNISH', deleted_count, (warn_id, auto_id), auto_action, auto_action_duration_seconds, auto_action_reason
             else:
-                return 'SUCCESS', deleted_count, punishment_id
+                return 'SUCCESS', deleted_count, warn_id, None, None, None
 
         role_id = moderation_roles.get(action)
         role = inter.guild.get_role(role_id) if role_id else None
@@ -63,27 +72,30 @@ async def apply_punishment(inter, offender, action, duration_delta, reason, dele
 
         if action == "kick":
             await offender.kick(reason=reason)
-            status_db, punishment_id = add_punishment("discord", offender.id, inter.author.id, reason, "kick", ticket_id=ticket_db_id)
+            status_db, punishment_id = add_punishment("discord", offender.id, inter.author.id, reason, "kick",
+                                                      ticket_id=ticket_db_id)
         elif action == "blacklist":
             await inter.guild.ban(offender, reason=reason, delete_message_days=0)
-            status_db, punishment_id = add_punishment("discord", offender.id, inter.author.id, reason, "blacklist", duration_seconds,
-                                       ticket_id=ticket_db_id)
+            status_db, punishment_id = add_punishment("discord", offender.id, inter.author.id, reason, "blacklist",
+                                                      duration_seconds,
+                                                      ticket_id=ticket_db_id)
         else:
             if role:
                 await offender.add_roles(role, reason=reason)
-            status_db, punishment_id = add_punishment("discord", offender.id, inter.author.id, reason, action, duration_seconds,
-                                       ticket_id=ticket_db_id)
+            status_db, punishment_id = add_punishment("discord", offender.id, inter.author.id, reason, action,
+                                                      duration_seconds,
+                                                      ticket_id=ticket_db_id)
 
         if status_db == 'ADDED':
-            return 'SUCCESS', deleted_count, punishment_id
+            return 'SUCCESS', deleted_count, punishment_id, None, None, None
         elif status_db == 'SKIPPED':
-            return 'ALREADY_LONGER', deleted_count, None
+            return 'ALREADY_LONGER', deleted_count, None, None, None, None
 
-        return 'FAILED', deleted_count, None
+        return 'FAILED', deleted_count, None, None, None, None
 
     except Exception as e:
         log.error(f"Error applying punishment: {e}", exc_info=True)
-        return 'FAILED', deleted_count, None
+        return 'FAILED', deleted_count, None, None, None, None
 
 
 async def apply_revocation(inter, user_to_revoke, action, reason, moderation_roles):

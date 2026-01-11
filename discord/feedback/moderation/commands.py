@@ -72,11 +72,12 @@ def setup_moderation_commands(bot, channels_config, roles_config):
         if not ticket_db_id:
             log.warning(f"Could not find ticket in DB for channel {inter.channel.id}. Punishment will not be linked.")
 
-        if check_ticket_has_punishment(ticket_db_id):
-            return await inter.response.send_message(
-                "❌ A punishment has already been issued in this ticket. Only one punishment is allowed per ticket.",
-                ephemeral=True
-            )
+        if action != "warn":
+            if check_ticket_has_punishment(ticket_db_id):
+                return await inter.response.send_message(
+                    "❌ A punishment has already been issued in this ticket. Only one punishment is allowed per ticket.",
+                    ephemeral=True
+                )
 
         embed = disnake.Embed(title="🛑 Punishment Confirmation", color=disnake.Color.orange())
         embed.add_field(name="👤 Offender", value=offender.mention, inline=True)
@@ -121,7 +122,7 @@ def setup_moderation_commands(bot, channels_config, roles_config):
         try:
             await view.wait()
             if view.confirmed:
-                status, deleted_count, punishment_id = await apply_punishment(
+                status, deleted_count, punishment_data, auto_action, auto_duration, auto_reason = await apply_punishment(
                     inter, offender, action, duration_delta, reason,
                     delete_days, moderation_roles, view.ticket_db_id
                 )
@@ -134,9 +135,11 @@ def setup_moderation_commands(bot, channels_config, roles_config):
 
                 response_embed = None
                 punishment_log_msg = None
+                punishment_id = None
 
                 if status == 'SUCCESS' or status == 'SUCCESS_WARN_AND_PUNISH':
                     if status == 'SUCCESS':
+                        punishment_id = punishment_data
                         response_message = f"✅ {action.capitalize()} applied to {offender.mention}!"
                         response_embed = disnake.Embed(description=response_message, color=disnake.Color.green())
 
@@ -152,7 +155,10 @@ def setup_moderation_commands(bot, channels_config, roles_config):
                             punishment_log_msg = await log_sender.send(embed=log_embed, wait=True)
 
                     elif status == 'SUCCESS_WARN_AND_PUNISH':
-                        response_message = f"✅ Warn applied. User reached {WARNS_UNTIL_ACTION} warnings and has been automatically **{ACTION_ON_WARN_LIMIT}ed**."
+                        warn_id, auto_id = punishment_data
+                        punishment_id = auto_id
+
+                        response_message = f"✅ Warn applied. User reached warning limit and has been automatically **{auto_action}ed**."
                         response_embed = disnake.Embed(description=response_message, color=disnake.Color.green())
 
                         if log_sender:
@@ -162,20 +168,30 @@ def setup_moderation_commands(bot, channels_config, roles_config):
                                                inline=True)
                             warn_log.add_field(name="🛡 Moderator", value=inter.author.mention, inline=True)
                             warn_log.add_field(name="📝 Reason", value=reason, inline=False)
-                            await log_sender.send(embed=warn_log)
 
-                            auto_punish_log = disnake.Embed(title=f"🚨 Automatic {ACTION_ON_WARN_LIMIT.capitalize()}",
+                            warn_msg = await log_sender.send(embed=warn_log, wait=True)
+                            if warn_id:
+                                try:
+                                    update_punishment_log_id(warn_id, warn_msg.id)
+                                except Exception as e:
+                                    log.error(f"Failed to update log_message_id for warn {warn_id}: {e}")
+
+                            auto_punish_log = disnake.Embed(title=f"🚨 Automatic {auto_action.capitalize()}",
                                                             color=disnake.Color.red(), timestamp=disnake.utils.utcnow())
                             auto_punish_log.add_field(name="👤 Offender", value=f"{offender.mention} ({offender.id})",
                                                       inline=True)
                             auto_punish_log.add_field(name="🛡 Moderator", value=f"{bot.user.mention} (Auto)",
                                                       inline=True)
-                            auto_punish_log.add_field(name="⚖️ Action", value=ACTION_ON_WARN_LIMIT, inline=True)
-                            auto_end_time = disnake.utils.utcnow() + timedelta(seconds=ACTION_ON_WARN_DURATION_SECONDS)
-                            auto_punish_log.add_field(name="⏱ Ends At", value=f"<t:{int(auto_end_time.timestamp())}:f>",
-                                                      inline=True)
+                            auto_punish_log.add_field(name="⚖️ Action", value=auto_action, inline=True)
+
+                            if auto_duration:
+                                auto_end_time = disnake.utils.utcnow() + timedelta(seconds=auto_duration)
+                                auto_punish_log.add_field(name="⏱ Ends At",
+                                                          value=f"<t:{int(auto_end_time.timestamp())}:f>",
+                                                          inline=True)
+
                             auto_punish_log.add_field(name="📝 Reason",
-                                                      value=f"Reached {WARNS_UNTIL_ACTION} active warnings.",
+                                                      value=auto_reason,
                                                       inline=False)
                             punishment_log_msg = await log_sender.send(embed=auto_punish_log, wait=True)
 
@@ -200,7 +216,7 @@ def setup_moderation_commands(bot, channels_config, roles_config):
                     await webhook.send(embed=response_embed)
                 else:
                     response_embed = disnake.Embed(
-                        description=f"❌ Failed to apply punishment to {offender.mention}!",
+                        description=f"❌ Failed to apply punishment to {offender.mention}!" if status != 'FAILED' else "❌ Punishment failed.",
                         color=disnake.Color.red()
                     )
                     await webhook.send(embed=response_embed)

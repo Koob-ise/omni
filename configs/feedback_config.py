@@ -51,7 +51,7 @@ MODAL_CONFIGS = {
     "complaint": {
         "title": "Complaint",
         "inputs": [
-            {"label": "Offender's tag", "custom_id": "offender", "style": TextInputStyle.short, "max_length": 200},
+            {"label": "Offender's tag", "custom_id": "offender", "style": TextInputStyle.short, "max_length": 100},
             {"label": "Rule violation", "custom_id": "rule", "style": TextInputStyle.short, "max_length": 15},
             {"label": "Date & time of violation (GMT/Timezone)", "custom_id": "violation_datetime", "style": TextInputStyle.short, "max_length": 50},
             {"label": "Violation description", "custom_id": "desc", "style": TextInputStyle.paragraph, "max_length": 1000},

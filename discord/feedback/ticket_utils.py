@@ -6,7 +6,8 @@ import re
 from database.tickets import log_ticket_open
 from database.core import (
     get_user_internal_id, get_info_for_all_active_punishments, create_user,
-    get_info_for_active_discord_complaints, find_mindustry_complaints_by_nickname
+    get_info_for_active_discord_complaints, find_mindustry_complaints_by_nickname,
+    get_all_user_punishments
 )
 
 log = logging.getLogger(__name__)
@@ -48,6 +49,64 @@ def get_rule_description_text(input_string, lang):
     return "\n".join(result_parts) if result_parts else None
 
 
+def _add_history_fields(embed, user_internal_id, guild_id, lang="en"):
+    if not user_internal_id:
+        return
+
+    log.info(f"Fetching punishment history for internal ID: {user_internal_id}")
+    history = get_all_user_punishments(user_internal_id)
+
+    if not history:
+        return
+
+    active_warns = []
+    active_punishments = []
+    inactive_punishments = []
+
+    punishments_channel_id = config.channels["channels"]["📌│punishments"]["id"]
+
+    for action in history:
+        action_type = action['action_type']
+        reason = action.get('reason', 'No reason')
+        date_str = action['time'].split(' ')[0]
+        log_id = action.get('log_message_id')
+
+        link_part = f"[{action_type.capitalize()}]"
+        if log_id:
+            url = f"https://discord.com/channels/{guild_id}/{punishments_channel_id}/{log_id}"
+            link_part = f"[{action_type.capitalize()}]({url})"
+
+        entry = f"{link_part} {reason} ({date_str})"
+
+        if action['is_active']:
+            if action_type == 'warn':
+                active_warns.append(entry)
+            else:
+                active_punishments.append(entry)
+        else:
+            inactive_punishments.append(entry)
+
+    def format_field(items):
+        joined = "\n".join(items)
+        if len(joined) > 1024:
+            return joined[:1021] + "..."
+        return joined
+
+    h_active = "Active Punishments" if lang == "en" else "Активные наказания"
+    h_warns = "Active Warns" if lang == "en" else "Активные варны"
+    h_inactive = "Past Punishments" if lang == "en" else "Прошлые наказания"
+
+    if active_punishments:
+        embed.add_field(name=h_active, value=format_field(active_punishments), inline=False)
+
+    if active_warns:
+        count_text = f"**Count: {len(active_warns)}**\n" if lang == "en" else f"**Количество: {len(active_warns)}**\n"
+        embed.add_field(name=h_warns, value=format_field([count_text + "\n".join(active_warns)]), inline=False)
+
+    if inactive_punishments:
+        embed.add_field(name=h_inactive, value=format_field(inactive_punishments), inline=False)
+
+
 async def create_ticket_channel(interaction, title, platform, form_data, lang="en"):
     try:
         log.info("Starting ticket channel creation")
@@ -76,6 +135,7 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
         log.debug(f"Initial overwrites: {overwrites.keys()}")
 
         offender_identifier = None
+        offender_internal_id = None
 
         if title == "Complaint":
             if platform.lower() == "discord":
@@ -107,6 +167,7 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
                         log.info(f"Offender {offender.display_name} found. Adding to channel overwrites.")
                         overwrites[offender] = disnake.PermissionOverwrite(read_messages=True, send_messages=True)
                         offender_identifier = str(offender.id)
+                        offender_internal_id = get_user_internal_id('discord', offender.id)
                     else:
                         log.warning(f"Could not find offender on the server using the provided tag: {clean_tag}")
 
@@ -115,6 +176,7 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
                 if raw_nickname and raw_nickname.strip():
                     offender_identifier = raw_nickname.strip()
                     log.info(f"Mindustry complaint detected. Storing offender identifier: {offender_identifier}")
+                    offender_internal_id = get_user_internal_id('mindustry', offender_identifier)
 
         ticket_type = title
         channel_key = f"{platform.capitalize()}-{ticket_type}"
@@ -181,26 +243,7 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
             if platform.lower() == "discord":
                 user_internal_id = get_user_internal_id("discord", interaction.author.id)
                 if user_internal_id:
-                    log.info(f"Searching for active punishments from Discord complaints for user {user_internal_id}.")
-                    active_punishments = get_info_for_active_discord_complaints(user_internal_id)
-
-                    if active_punishments:
-                        log.info(f"Found {len(active_punishments)} active punishments for user {user_internal_id}.")
-                        server_id = interaction.guild.id
-                        closed_tickets_channel_id = config.channels["channels"]["📌│closed-tickets"]["id"]
-                        punishment_links = []
-                        for punishment in active_punishments:
-                            action_type = punishment['action_type'].capitalize()
-                            log_message_id = punishment.get('log_message_id')
-                            link = f"https://discord.com/channels/{server_id}/{closed_tickets_channel_id}/{log_message_id}"
-                            punishment_links.append(f"**{action_type}**: [View Log]({link})")
-
-                        if punishment_links:
-                            embed.add_field(
-                                name="Found Active Punishments",
-                                value="\n".join(punishment_links),
-                                inline=False
-                            )
+                    _add_history_fields(embed, user_internal_id, interaction.guild.id, lang)
                 else:
                     log.warning(f"Could not find internal ID for user {interaction.author.id}.")
 
@@ -208,6 +251,11 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
                 appellant_nick = form_data.get("username")
                 if appellant_nick:
                     log.info(f"Searching for Mindustry complaints against '{appellant_nick}'.")
+
+                    mindustry_internal_id = get_user_internal_id("mindustry", appellant_nick)
+                    if mindustry_internal_id:
+                        _add_history_fields(embed, mindustry_internal_id, interaction.guild.id, lang)
+
                     found_complaints = find_mindustry_complaints_by_nickname(appellant_nick)
 
                     if found_complaints:
@@ -224,14 +272,16 @@ async def create_ticket_channel(interaction, title, platform, form_data, lang="e
 
                         if complaint_links:
                             embed.add_field(
-                                name="Found Mindustry Complaints",
+                                name="Related Mindustry Tickets",
                                 value="\n".join(complaint_links),
                                 inline=False
                             )
-                    else:
-                        log.warning(f"No closed Mindustry complaints found for offender '{appellant_nick}'.")
                 else:
                     log.warning("Appellant's game nick not provided in the appeal form.")
+
+        if title == "Complaint" and offender_internal_id:
+            log.info(f"Fetching punishment history for offender internal ID: {offender_internal_id}")
+            _add_history_fields(embed, offender_internal_id, interaction.guild.id, lang)
 
         embed.add_field(name="Platform", value=platform.capitalize(), inline=False)
         footer_text = f"ticket_type:{ticket_type};lang:{lang};opener:{interaction.author.id}"

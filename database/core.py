@@ -337,3 +337,17 @@ def find_mindustry_complaints_by_nickname(nickname):
         )
         results = [dict(row) for row in cursor.fetchall()]
         return results
+
+def get_all_user_punishments(user_internal_id):
+    if not user_internal_id:
+        return []
+    with db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """SELECT ua.action_type, ua.reason, ua.time, ua.is_active, ua.duration_seconds, ua.log_message_id
+               FROM user_actions ua
+               WHERE ua.user_id = ?
+               ORDER BY ua.time DESC""",
+            (user_internal_id,)
+        )
+        return [dict(row) for row in cursor.fetchall()]
